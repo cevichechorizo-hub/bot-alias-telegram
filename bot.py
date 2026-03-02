@@ -9,11 +9,10 @@ logger = logging.getLogger(__name__)
 BOT_TOKEN = "8491596754:AAHBnLtSRI9Ii3uL6y-rcmLXxfU_7_7bips"
 TARGET_GROUP_ID = -1003534894759
 
-logger.info("🤖 BOT INICIANDO - V5 SIMPLE")
-bot = TeleBot(BOT_TOKEN)
+logger.info("🤖 BOT V6 - ROBUSTO Y CONFIABLE")
+bot = TeleBot(BOT_TOKEN, skip_pending=True)
 logger.info("✅ CONECTADO A TELEGRAM")
 
-# Palabras prohibidas clave
 BANNED_WORDS = {"sexo", "porno", "xxx", "pedofilia", "cepecito", "anal", "anus", "anilingus", 
 "ape", "arsehole", "asshole", "asswipe", "bastard", "bitch", "cock", "cocksucker", "crap", 
 "damn", "dick", "dickhead", "dildo", "douche", "fuck", "fucker", "fuckhead", "fucking", 
@@ -122,7 +121,7 @@ Los enlaces no están permitidos aquí."""
                 logger.info(f"❌ {user.first_name} - Enlace")
             except Exception as e: logger.error(f"Error: {e}")
             return
-    except Exception as e: logger.error(f"Error: {e}")
+    except Exception as e: logger.error(f"Error general: {e}")
 
 def keepalive_loop():
     while True:
@@ -130,6 +129,17 @@ def keepalive_loop():
             time.sleep(30)
             logger.info("✅ Keepalive: Bot activo 24/7")
         except: pass
+
+def polling_loop():
+    """Polling robusto con reintentos infinitos"""
+    while True:
+        try:
+            logger.info("🚀 Iniciando polling...")
+            bot.infinity_polling(timeout=60, long_polling_timeout=30, skip_pending=True)
+        except Exception as e:
+            logger.error(f"❌ Error en polling: {e}")
+            logger.info("⏳ Reintentando en 5 segundos...")
+            time.sleep(5)
 
 def signal_handler(sig, frame):
     logger.info("🛑 TERMINANDO")
@@ -140,11 +150,15 @@ signal.signal(signal.SIGINT, signal_handler)
 signal.signal(signal.SIGTERM, signal_handler)
 
 if __name__ == "__main__":
-    logger.info("🚀 POLLING INFINITO")
+    logger.info("🚀 INICIANDO BOT ROBUSTO V6")
+    
     keepalive_thread = threading.Thread(target=keepalive_loop, daemon=True)
     keepalive_thread.start()
+    
+    polling_thread = threading.Thread(target=polling_loop, daemon=False)
+    polling_thread.start()
+    
     try:
-        bot.infinity_polling(timeout=60, long_polling_timeout=30)
-    except Exception as e:
-        logger.error(f"Error: {e}")
+        polling_thread.join()
+    except KeyboardInterrupt:
         signal_handler(None, None)
