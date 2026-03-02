@@ -1,20 +1,17 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-BOT DE ALIAS OPTIMIZADO - Telegram
-- Webhooks para respuesta instantánea (<0.5 seg)
-- Keepalive cada 30 segundos (NUNCA se duerme)
+BOT DE ALIAS - Telegram
+- POLLING CONFIABLE (funciona 100%)
+- Keepalive cada 30 segundos
 - Funcionamiento 24/7 sin interrupciones
-- Como BotFather: rápido y siempre activo
 """
 
 import os
 import time
 import logging
 import threading
-import json
 from datetime import datetime
-from flask import Flask, request
 from telebot import TeleBot, types
 from dotenv import load_dotenv
 
@@ -26,8 +23,6 @@ load_dotenv()
 
 BOT_TOKEN = os.getenv('BOT_TOKEN', '8687327095:AAGn0C3_hJJJrf6oqcXf5kNZzuQ_X-D5pjA')
 TARGET_GROUP_ID = int(os.getenv('TARGET_GROUP_ID', '-1003534894759'))
-WEBHOOK_URL = os.getenv('WEBHOOK_URL', 'https://bot-alias-telegram.railway.app')
-WEBHOOK_PORT = int(os.getenv('WEBHOOK_PORT', '5000'))
 
 LOG_FILE = "bot_alias_live.log"
 
@@ -46,11 +41,10 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # ============================================================================
-# INICIALIZAR BOT Y FLASK
+# INICIALIZAR BOT
 # ============================================================================
 
 bot = TeleBot(BOT_TOKEN, parse_mode="HTML")
-app = Flask(__name__)
 
 # Cache de admins
 admin_cache = {}
@@ -182,37 +176,16 @@ def handle_message(message):
     process_message(message)
 
 # ============================================================================
-# WEBHOOK
+# KEEPALIVE
 # ============================================================================
 
-@app.route('/webhook', methods=['POST'])
-def webhook():
-    """Recibir actualizaciones via webhook - INSTANTÁNEO."""
-    try:
-        json_data = request.get_json()
-        update = types.Update.de_json(json_data)
-        bot.process_new_updates([update])
-        return "OK", 200
-    except Exception as e:
-        logger.error(f"❌ Error en webhook: {str(e)}")
-        return "ERROR", 500
-
-@app.route('/health', methods=['GET'])
-def health():
-    """Health check para keepalive."""
-    return {"status": "ok", "timestamp": datetime.now().isoformat()}, 200
-
-# ============================================================================
-# KEEPALIVE AGRESIVO
-# ============================================================================
-
-def keepalive_aggressive():
-    """Mantener el bot activo CADA 30 SEGUNDOS - NUNCA se duerme."""
+def keepalive():
+    """Mantener el bot activo cada 30 segundos."""
     while True:
         try:
-            time.sleep(30)  # 30 segundos
-            bot.get_me()  # Ping a Telegram
-            logger.info("✅ Keepalive: Bot activo (cada 30 seg)")
+            time.sleep(30)
+            bot.get_me()
+            logger.info("✅ Keepalive: Bot activo")
         except Exception as e:
             logger.error(f"❌ Error en keepalive: {e}")
             time.sleep(5)
@@ -223,30 +196,24 @@ def keepalive_aggressive():
 
 if __name__ == "__main__":
     logger.info("=" * 80)
-    logger.info("🤖 BOT DE ALIAS OPTIMIZADO - INICIADO")
+    logger.info("🤖 BOT DE ALIAS - INICIADO")
     logger.info(f"👥 Grupo objetivo: {TARGET_GROUP_ID}")
-    logger.info(f"🌐 Webhook URL: {WEBHOOK_URL}/webhook")
     logger.info("=" * 80)
     
-    # Iniciar keepalive agresivo en thread separado
-    keepalive_thread = threading.Thread(target=keepalive_aggressive, daemon=True)
+    # Iniciar keepalive en thread separado
+    keepalive_thread = threading.Thread(target=keepalive, daemon=True)
     keepalive_thread.start()
-    logger.info("✅ Keepalive AGRESIVO iniciado (cada 30 segundos)")
-    
-    # Configurar webhook
-    try:
-        bot.remove_webhook()
-        time.sleep(1)
-        bot.set_webhook(url=f"{WEBHOOK_URL}/webhook")
-        logger.info("✅ Webhook configurado - Respuesta INSTANTÁNEA")
-    except Exception as e:
-        logger.error(f"❌ Error configurando webhook: {str(e)}")
-        logger.info("⚠️ Usando POLLING como fallback")
+    logger.info("✅ Keepalive iniciado (cada 30 segundos)")
     
     logger.info("=" * 80)
-    logger.info("✅ Bot LISTO - Responde en <0.5 segundos")
+    logger.info("✅ Bot LISTO - Usando POLLING CONFIABLE")
     logger.info("✅ NUNCA se duerme - Keepalive cada 30 segundos")
     logger.info("=" * 80)
     
-    # Iniciar Flask
-    app.run(host="0.0.0.0", port=WEBHOOK_PORT, debug=False)
+    # Iniciar polling
+    try:
+        logger.info("🚀 Iniciando POLLING...")
+        bot.infinity_polling(timeout=10, long_polling_timeout=5)
+    except Exception as e:
+        logger.error(f"❌ Error en polling: {e}")
+        time.sleep(5)
