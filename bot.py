@@ -1,20 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-"""
-Bot de Telegram para verificar que los usuarios tengan username.
-Borra mensajes de usuarios sin username y envía instrucciones.
-"""
-
 import logging
 import asyncio
+import sys
+import signal
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, MessageHandler, filters, ContextTypes, CommandHandler
 
-# Configurar logging
+# Configurar logging para ver todo
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    stream=sys.stdout,
+    format='%(asctime)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
 
@@ -23,63 +21,62 @@ BOT_TOKEN = "8687327095:AAGn0C3_hJJJrf6oqcXf5kNZzuQ_X-D5pjA"
 TARGET_GROUP_ID = -1003534894759
 
 # Cache de admins
-admin_cache = set()
+admin_cache = {}
 admin_cache_time = 0
 
 async def get_admins(context):
-    """Obtener lista de admins del grupo."""
+    """Obtener administradores del grupo."""
     global admin_cache, admin_cache_time
     import time
     
     current_time = time.time()
-    # Actualizar cache cada 10 minutos
+    # Actualizar cada 10 minutos
     if current_time - admin_cache_time > 600:
         try:
             admins = await context.bot.get_chat_administrators(TARGET_GROUP_ID)
             admin_cache = {admin.user.id for admin in admins}
             admin_cache_time = current_time
-            logger.info(f"✅ Admins actualizados: {len(admin_cache)} admins")
+            logger.info(f"✅ Admins actualizados: {len(admin_cache)}")
         except Exception as e:
             logger.error(f"❌ Error obteniendo admins: {e}")
     
     return admin_cache
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Manejar mensajes del grupo."""
+    """Procesar TODOS los mensajes del grupo."""
     try:
         # Solo procesar mensajes del grupo objetivo
         if update.message.chat_id != TARGET_GROUP_ID:
-            logger.debug(f"Mensaje de chat diferente: {update.message.chat_id}")
             return
         
         user_id = update.message.from_user.id
         username = update.message.from_user.username
+        message_text = update.message.text[:50] if update.message.text else "[sin texto]"
         
-        logger.info(f"📨 Mensaje de usuario {user_id}, username: {username}")
+        logger.info(f"📨 MENSAJE: Usuario {user_id} (@{username}): {message_text}")
         
         # Obtener admins
         admins = await get_admins(context)
         
         # Si es admin, permitir
         if user_id in admins:
-            logger.info(f"✅ Usuario {user_id} es admin, permitiendo")
+            logger.info(f"✅ Admin permitido")
             return
         
         # Si tiene username, permitir
         if username:
-            logger.info(f"✅ Usuario {user_id} tiene username '{username}', permitiendo")
+            logger.info(f"✅ Usuario con username permitido")
             return
         
-        # Si NO tiene username, actuar
-        logger.warning(f"🚫 Usuario {user_id} SIN USERNAME - Borrando mensaje")
+        # Si NO tiene username, ACTUAR INMEDIATAMENTE
+        logger.warning(f"🚫 USUARIO SIN USERNAME - ACCIONANDO")
         
         # Borrar el mensaje
         try:
             await update.message.delete()
             logger.info(f"✅ Mensaje borrado")
         except Exception as e:
-            logger.error(f"❌ Error borrando mensaje: {e}")
-            return
+            logger.error(f"❌ Error borrando: {e}")
         
         # Enviar notificación
         try:
@@ -93,10 +90,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     [InlineKeyboardButton("📖 Ver instrucciones", url="https://t.me/Aliaselmenchobot?start=help")]
                 ])
             )
-            logger.info(f"✅ Notificación enviada (ID: {notification.message_id})")
+            logger.info(f"✅ Notificación enviada")
             
             # Borrar notificación después de 30 segundos
-            async def delete_after_delay():
+            async def delete_notification():
                 await asyncio.sleep(30)
                 try:
                     await context.bot.delete_message(TARGET_GROUP_ID, notification.message_id)
@@ -104,7 +101,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 except Exception as e:
                     logger.debug(f"Error borrando notificación: {e}")
             
-            asyncio.create_task(delete_after_delay())
+            asyncio.create_task(delete_notification())
         
         except Exception as e:
             logger.error(f"❌ Error enviando notificación: {e}")
@@ -113,7 +110,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"❌ Error en handle_message: {e}")
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Manejar comando /start."""
+    """Comando /start."""
     try:
         logger.info(f"📨 /start de usuario {update.message.from_user.id}")
         
@@ -131,27 +128,27 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         logger.info(f"✅ Mensaje /start enviado")
         
-        # Borrar mensaje después de 60 segundos
-        async def delete_after_delay():
+        # Borrar después de 60 segundos
+        async def delete_message():
             await asyncio.sleep(60)
             try:
                 await context.bot.delete_message(update.message.from_user.id, message.message_id)
                 logger.info(f"✅ Mensaje /start borrado")
             except Exception as e:
-                logger.debug(f"Error borrando mensaje /start: {e}")
+                logger.debug(f"Error borrando /start: {e}")
         
-        asyncio.create_task(delete_after_delay())
+        asyncio.create_task(delete_message())
     
     except Exception as e:
         logger.error(f"❌ Error en /start: {e}")
 
 async def main():
-    """Función principal."""
-    logger.info("=" * 70)
+    """Función principal - NUNCA se duerme."""
+    logger.info("=" * 80)
     logger.info("🤖 INICIANDO BOT DE TELEGRAM - VERIFICADOR DE USERNAME")
     logger.info(f"   Token: {BOT_TOKEN[:30]}...")
     logger.info(f"   Grupo: {TARGET_GROUP_ID}")
-    logger.info("=" * 70)
+    logger.info("=" * 80)
     
     # Crear aplicación
     app = Application.builder().token(BOT_TOKEN).build()
@@ -171,23 +168,38 @@ async def main():
     await app.start()
     logger.info("✅ Bot iniciado")
     
-    # Polling
-    logger.info("📡 Iniciando polling...")
-    await app.updater.start_polling(
-        allowed_updates=["message"],
-        drop_pending_updates=False
-    )
-    logger.info("✅ Polling activo - Bot listo para recibir mensajes")
+    # Polling - NUNCA se duerme
+    logger.info("📡 Iniciando polling continuo...")
+    logger.info("⚠️ IMPORTANTE: El bot está en modo SIEMPRE ACTIVO")
     
-    # Mantener corriendo
-    await asyncio.Event().wait()
-
-if __name__ == "__main__":
     try:
-        asyncio.run(main())
+        await app.updater.start_polling(
+            allowed_updates=["message", "edited_message"],
+            drop_pending_updates=False,
+            poll_interval=0.5,  # Verificar cada 500ms
+            timeout=30,
+            read_timeout=30,
+            write_timeout=30,
+            connect_timeout=30
+        )
+        logger.info("✅ Polling activo - Bot LISTO para recibir mensajes")
+        logger.info("✅ El bot NO se dormirá")
+        
+        # Mantener corriendo indefinidamente
+        await asyncio.Event().wait()
+    
     except KeyboardInterrupt:
         logger.info("⛔ Bot detenido por el usuario")
     except Exception as e:
         logger.error(f"❌ Error fatal: {e}")
         raise
-# Redeploy force - Mon Mar  2 02:46:59 EST 2026
+
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        logger.info("⛔ Bot detenido")
+        sys.exit(0)
+    except Exception as e:
+        logger.error(f"❌ Error: {e}")
+        sys.exit(1)
