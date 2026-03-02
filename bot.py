@@ -1,24 +1,33 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+"""
+Bot de Telegram para verificar usernames en grupo.
+Optimizado para Railway - Usa POLLING (más confiable que webhook).
+"""
 
 import logging
 import asyncio
 import os
+import sys
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, MessageHandler, filters, ContextTypes, CommandHandler
 
 # Configurar logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    stream=sys.stdout
 )
 logger = logging.getLogger(__name__)
 
-# Configuración
+# Configuración desde variables de entorno
 BOT_TOKEN = os.getenv("BOT_TOKEN", "8687327095:AAGn0C3_hJJJrf6oqcXf5kNZzuQ_X-D5pjA")
 TARGET_GROUP_ID = int(os.getenv("TARGET_GROUP_ID", "-1003534894759"))
-WEBHOOK_URL = os.getenv("WEBHOOK_URL", "")
-PORT = int(os.getenv("PORT", "8000"))
+
+logger.info("=" * 80)
+logger.info(f"BOT_TOKEN: {BOT_TOKEN[:30]}...")
+logger.info(f"TARGET_GROUP_ID: {TARGET_GROUP_ID}")
+logger.info("=" * 80)
 
 # Cache de admins
 admin_cache = {}
@@ -30,7 +39,6 @@ async def get_admins(context):
     import time
     
     current_time = time.time()
-    # Actualizar cada 10 minutos
     if current_time - admin_cache_time > 600:
         try:
             admins = await context.bot.get_chat_administrators(TARGET_GROUP_ID)
@@ -45,33 +53,29 @@ async def get_admins(context):
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Procesar TODOS los mensajes del grupo."""
     try:
-        # Solo procesar mensajes del grupo objetivo
-        if update.message.chat_id != TARGET_GROUP_ID:
+        if not update.message or update.message.chat_id != TARGET_GROUP_ID:
             return
         
         user_id = update.message.from_user.id
         username = update.message.from_user.username
-        message_text = update.message.text[:50] if update.message.text else "[sin texto]"
+        message_text = (update.message.text[:50] if update.message.text else "[sin texto]")
         
         logger.info(f"📨 MENSAJE: Usuario {user_id} (@{username}): {message_text}")
         
-        # Obtener admins
         admins = await get_admins(context)
         
-        # Si es admin, permitir
         if user_id in admins:
             logger.info(f"✅ Admin permitido")
             return
         
-        # Si tiene username, permitir
         if username:
             logger.info(f"✅ Usuario con username permitido")
             return
         
-        # Si NO tiene username, ACTUAR INMEDIATAMENTE
+        # Usuario SIN username - ACTUAR
         logger.warning(f"🚫 USUARIO SIN USERNAME - ACCIONANDO")
         
-        # Borrar el mensaje
+        # Borrar mensaje
         try:
             await update.message.delete()
             logger.info(f"✅ Mensaje borrado")
@@ -128,7 +132,6 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         logger.info(f"✅ Mensaje /start enviado")
         
-        # Borrar después de 60 segundos
         async def delete_message():
             await asyncio.sleep(60)
             try:
@@ -143,13 +146,10 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"❌ Error en /start: {e}")
 
 async def main():
-    """Función principal - WEBHOOK para Railway."""
+    """Función principal."""
     logger.info("=" * 80)
     logger.info("🤖 INICIANDO BOT DE TELEGRAM - VERIFICADOR DE USERNAME")
-    logger.info(f"   Token: {BOT_TOKEN[:30]}...")
-    logger.info(f"   Grupo: {TARGET_GROUP_ID}")
-    logger.info(f"   Webhook URL: {WEBHOOK_URL}")
-    logger.info(f"   Puerto: {PORT}")
+    logger.info("📡 Modo: POLLING (óptimo para Railway)")
     logger.info("=" * 80)
     
     # Crear aplicación
@@ -170,53 +170,31 @@ async def main():
     await app.start()
     logger.info("✅ Bot iniciado")
     
-    # Configurar WEBHOOK para Railway
-    logger.info("📡 Configurando WEBHOOK...")
-    
-    if WEBHOOK_URL:
-        # Usar WEBHOOK (recomendado para Railway)
-        try:
-            await app.bot.set_webhook(url=WEBHOOK_URL + BOT_TOKEN)
-            logger.info(f"✅ Webhook configurado: {WEBHOOK_URL + BOT_TOKEN}")
-            
-            # Iniciar servidor web para recibir webhooks
-            await app.updater.start_webhook(
-                listen="0.0.0.0",
-                port=PORT,
-                url_path=BOT_TOKEN,
-                webhook_url=WEBHOOK_URL + BOT_TOKEN
-            )
-            logger.info(f"✅ Servidor webhook escuchando en puerto {PORT}")
-            logger.info("✅ Bot LISTO para recibir mensajes vía WEBHOOK")
-            
-            # Mantener corriendo
-            await asyncio.Event().wait()
-        
-        except Exception as e:
-            logger.error(f"❌ Error configurando webhook: {e}")
-            logger.info("📡 Fallback a POLLING...")
-            
-            # Fallback a polling si webhook falla
-            await app.updater.start_polling(
-                allowed_updates=["message", "edited_message"],
-                drop_pending_updates=False
-            )
-            logger.info("✅ Polling activo (modo fallback)")
-            await asyncio.Event().wait()
-    else:
-        # Usar POLLING si no hay WEBHOOK_URL
-        logger.info("⚠️ WEBHOOK_URL no configurada, usando POLLING...")
+    # POLLING - Simple y confiable
+    logger.info("📡 Iniciando POLLING...")
+    try:
         await app.updater.start_polling(
             allowed_updates=["message", "edited_message"],
             drop_pending_updates=False
         )
-        logger.info("✅ Polling activo - Bot LISTO para recibir mensajes")
+        logger.info("✅ POLLING ACTIVO - Bot LISTO para recibir mensajes")
+        logger.info("✅ El bot NO se dormirá")
+        
+        # Mantener corriendo indefinidamente
         await asyncio.Event().wait()
+    
+    except KeyboardInterrupt:
+        logger.info("⛔ Bot detenido por el usuario")
+    except Exception as e:
+        logger.error(f"❌ Error fatal: {e}")
+        raise
 
 if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
         logger.info("⛔ Bot detenido")
+        sys.exit(0)
     except Exception as e:
         logger.error(f"❌ Error: {e}")
+        sys.exit(1)
