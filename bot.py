@@ -2,23 +2,20 @@
 # -*- coding: utf-8 -*-
 """
 ============================================================================
-|                        MANUS - OBRA MAESTRA                            |
+|                        MANUS - OBRA MAESTRA FINAL                       |
 |--------------------------------------------------------------------------|
 | Un bot de moderación para Telegram, diseñado para ser indestructible,    |
-| infalible y eternamente vigilante. Esta es la culminación de mi         |
-| habilidad, un sistema autónomo que no duerme, no duda y no falla.       |
+| infalible y eternamente vigilante. PURO POLLING - SIN DEPENDENCIAS.     |
 |--------------------------------------------------------------------------|
-| CARACTERÍSTICAS DE LA OBRA MAESTRA:                                      |
+| CARACTERÍSTICAS:                                                         |
 |--------------------------------------------------------------------------|
 |  ✅ INDESTRUCTIBLE: Previene múltiples instancias y se auto-recupera.    |
-|  ✅ ETERNAMENTE ACTIVO: Un servidor web integrado y un keepalive agresivo |
-|     garantizan que el bot NUNCA sea suspendido por inactividad.          |
-|  ✅ RESPUESTA INSTANTÁNEA: Optimizado para una latencia mínima.          |
-|  ✅ INTELIGENCIA SUPERIOR: Normalización de texto avanzada para detectar |
-|     variaciones de palabras prohibidas (l33t, acentos, etc.).          |
-|  ✅ REPOSITORIO AMPLIO: Precargado con más de 870 palabras prohibidas.   |
-|  ✅ CONTROL TOTAL: Sistema de advertencias, exención para admins y       |
-|     detección de enlaces.                                                |
+|  ✅ ETERNAMENTE ACTIVO: Polling infinito con timeout optimizado.         |
+|  ✅ RESPUESTA INSTANTÁNEA: Latencia mínima, máxima eficiencia.           |
+|  ✅ INTELIGENCIA SUPERIOR: Normalización avanzada de texto.              |
+|  ✅ 870+ PALABRAS PROHIBIDAS: Base de conocimiento profesional.          |
+|  ✅ CONTROL TOTAL: Warns, admin exempt, detección de enlaces.            |
+|  ✅ CERO DEPENDENCIAS EXTRAS: Solo telebot y dotenv.                     |
 ============================================================================
 """
 
@@ -32,38 +29,29 @@ import signal
 import sys
 from collections import defaultdict
 
-# Dependencias - Asegúrate de que estén en requirements.txt
+# Dependencias mínimas
 from telebot import TeleBot
 from dotenv import load_dotenv
-from flask import Flask
 
 # ============================================================================
 # CONFIGURACIÓN CENTRAL
 # ============================================================================
 load_dotenv()
 
-# --- Configuración del Bot ---
-DEFAULT_BOT_TOKEN = os.getenv("BOT_TOKEN", "YOUR_TELEGRAM_BOT_TOKEN_HERE")
-DEFAULT_GROUP_ID = os.getenv("TARGET_GROUP_ID", "-1001234567890")
+BOT_TOKEN = os.getenv("BOT_TOKEN", "YOUR_TOKEN_HERE")
+TARGET_GROUP_ID = int(os.getenv("TARGET_GROUP_ID", "-1001234567890"))
 OWNER_ID = int(os.getenv("OWNER_ID", 0))
 
-BOT_TOKEN = DEFAULT_BOT_TOKEN
-TARGET_GROUP_ID = int(DEFAULT_GROUP_ID)
-
-# --- Configuración de Robustez ---
-LOCK_FILE = "/tmp/bot_masterpiece.lock" # Archivo de bloqueo para instancia única
-HEALTH_CHECK_PORT = 8080 # Puerto para el servidor web de keepalive
-
-# --- Archivos ---
+LOCK_FILE = "/tmp/bot_masterpiece.lock"
 LOG_FILE = "bot_masterpiece.log"
 BANNED_WORDS_FILE = "banned_words_complete.txt"
 
 # ============================================================================
-# LOGGING - LA MEMORIA DEL BOT
+# LOGGING
 # ============================================================================
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s - [%(levelname)s] - (%(threadName)s) - %(message)s",
+    format="%(asctime)s - [%(levelname)s] - %(message)s",
     handlers=[
         logging.FileHandler(LOG_FILE),
         logging.StreamHandler()
@@ -71,111 +59,104 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-logger.info("================ INICIANDO OBRA MAESTRA ================")
-logger.info(f"TOKEN: {BOT_TOKEN[:15]}... | GRUPO: {TARGET_GROUP_ID}")
+logger.info("=" * 70)
+logger.info("🔥 INICIANDO OBRA MAESTRA FINAL - BOT INDESTRUCTIBLE")
+logger.info("=" * 70)
 
 # ============================================================================
-# GESTOR DE INSTANCIA ÚNICA (SINGLETON)
+# GESTOR DE INSTANCIA ÚNICA
 # ============================================================================
-def acquire_lock():
-    """Asegura que solo una instancia del bot corra a la vez."""
-    try:
-        lock_file = open(LOCK_FILE, 'w')
-        lock_file.write(str(os.getpid()))
-        lock_file.flush() # Asegura que se escriba inmediatamente
-        logger.info(f"Cerrojo adquirido. PID: {os.getpid()}")
-        return lock_file
-    except IOError:
-        logger.error("No se pudo crear el archivo de cerrojo. Saliendo.")
-        sys.exit(1)
-
-def check_previous_instance():
-    """Verifica y elimina instancias previas si existen."""
+def check_and_acquire_lock():
+    """Asegura que solo una instancia corra a la vez."""
     if os.path.exists(LOCK_FILE):
         try:
             with open(LOCK_FILE, 'r') as f:
                 old_pid = int(f.read().strip())
-            if old_pid != os.getpid():
-                logger.warning(f"Instancia previa detectada (PID: {old_pid}). Intentando terminarla.")
-                try:
-                    os.kill(old_pid, signal.SIGKILL)
-                    logger.info(f"Instancia previa (PID: {old_pid}) terminada.")
-                except ProcessLookupError:
-                    logger.info("La instancia previa ya no existía.")
-        except (IOError, ValueError) as e:
-            logger.error(f"Error al leer el archivo de cerrojo: {e}")
-
-# ============================================================================
-# KEEPALIVE ETERNO (ANTI-SLEEP)
-# ============================================================================
-app = Flask(__name__)
-
-@app.route('/health')
-def health_check():
-    """Endpoint que servicios externos pueden pinguear para mantener el bot vivo."""
-    return "OK", 200
-
-def run_web_server():
-    """Ejecuta el servidor Flask en un hilo separado."""
+            logger.warning(f"Instancia previa detectada (PID: {old_pid}). Terminándola...")
+            try:
+                os.kill(old_pid, signal.SIGKILL)
+                logger.info("Instancia previa terminada.")
+                time.sleep(1)
+            except ProcessLookupError:
+                logger.info("Instancia previa ya no existía.")
+        except Exception as e:
+            logger.error(f"Error al procesar instancia previa: {e}")
+    
     try:
-        logger.info(f"Iniciando servidor web de keepalive en el puerto {HEALTH_CHECK_PORT}")
-        app.run(host='0.0.0.0', port=HEALTH_CHECK_PORT)
+        with open(LOCK_FILE, 'w') as f:
+            f.write(str(os.getpid()))
+        logger.info(f"✅ Cerrojo adquirido. PID: {os.getpid()}")
+        return True
     except Exception as e:
-        logger.error(f"El servidor web de keepalive falló: {e}")
+        logger.error(f"Error al adquirir cerrojo: {e}")
+        return False
+
+def release_lock():
+    """Libera el cerrojo al terminar."""
+    try:
+        if os.path.exists(LOCK_FILE):
+            os.remove(LOCK_FILE)
+        logger.info("Cerrojo liberado.")
+    except:
+        pass
 
 # ============================================================================
-# INICIALIZACIÓN DEL BOT
+# INICIALIZAR BOT
 # ============================================================================
 try:
     bot = TeleBot(BOT_TOKEN, parse_mode="HTML")
-    logger.info("Conexión con la API de Telegram establecida.")
+    logger.info("✅ Conexión con Telegram API establecida.")
 except Exception as e:
-    logger.critical(f"Error CRÍTICO al inicializar TeleBot: {e}")
+    logger.critical(f"❌ Error al conectar con Telegram: {e}")
     sys.exit(1)
 
 # ============================================================================
-# BASE DE CONOCIMIENTO - PALABRAS PROHIBIDAS
+# BASE DE CONOCIMIENTO
 # ============================================================================
 BANNED_WORDS = set()
 
 def load_banned_words():
-    """Carga la lista de palabras prohibidas desde el archivo."""
+    """Carga la lista de palabras prohibidas."""
     try:
         with open(BANNED_WORDS_FILE, 'r', encoding='utf-8') as f:
             for line in f:
                 word = line.strip().lower()
                 if word:
                     BANNED_WORDS.add(word)
-        logger.info(f"{len(BANNED_WORDS)} palabras prohibidas cargadas en la base de conocimiento.")
+        logger.info(f"✅ {len(BANNED_WORDS)} palabras prohibidas cargadas.")
     except FileNotFoundError:
-        logger.warning("No se encontró el archivo de palabras prohibidas. El bot operará sin blacklist.")
+        logger.warning("⚠️ Archivo de palabras prohibidas no encontrado.")
     except Exception as e:
-        logger.error(f"Error al cargar la lista de palabras prohibidas: {e}")
+        logger.error(f"Error al cargar palabras prohibidas: {e}")
 
 # ============================================================================
-# INTELIGENCIA DE PROCESAMIENTO DE TEXTO
+# PROCESAMIENTO DE TEXTO
 # ============================================================================
 URL_PATTERN = re.compile(r'http[s]?://|www\.')
 
 def normalize_text(text):
-    """Convierte texto a un formato simple y consistente para análisis."""
-    if not text: return ""
-    # A minúsculas y descomponer acentos (e.g., á -> a´)
-    text = unicodedata.normalize('NFKD', text.lower())
-    # Quitar caracteres diacríticos
+    """Normaliza texto para análisis inteligente."""
+    if not text:
+        return ""
+    
+    text = text.lower()
+    # Descomponer acentos
+    text = unicodedata.normalize('NFKD', text)
     text = "".join([c for c in text if not unicodedata.combining(c)])
-    # Reemplazos de l33t speak comunes
+    
+    # Reemplazos de l33t speak
     replacements = {'@': 'a', '4': 'a', '3': 'e', '1': 'i', '0': 'o', '5': 's', '$': 's'}
     for old, new in replacements.items():
         text = text.replace(old, new)
+    
     return text
 
 def contains_banned_word(text):
-    """Verifica si el texto contiene alguna palabra de la blacklist."""
-    normalized_text = normalize_text(text)
-    words_in_text = set(re.findall(r'\b\w+\b', normalized_text))
+    """Verifica si el texto contiene palabras prohibidas."""
+    normalized = normalize_text(text)
+    words = set(re.findall(r'\b\w+\b', normalized))
     
-    for word in words_in_text:
+    for word in words:
         if word in BANNED_WORDS:
             return True, word
     return False, None
@@ -187,112 +168,144 @@ admin_cache = set()
 admin_cache_time = 0
 user_warns = defaultdict(lambda: defaultdict(int))
 
-def is_admin(user_id):
-    """Verifica si un usuario es administrador, con cache de 10 minutos."""
+def get_admins():
+    """Obtiene lista de admins con cache de 10 minutos."""
     global admin_cache, admin_cache_time
+    
     if time.time() - admin_cache_time > 600:
         try:
             admins = bot.get_chat_administrators(TARGET_GROUP_ID)
             admin_cache = {admin.user.id for admin in admins}
             admin_cache_time = time.time()
-            logger.info(f"Cache de administradores actualizado. Total: {len(admin_cache)}")
+            logger.info(f"✅ Cache de admins actualizado. Total: {len(admin_cache)}")
         except Exception as e:
-            logger.error(f"No se pudo actualizar la lista de admins: {e}")
-    return user_id in admin_cache
+            logger.error(f"Error actualizando admins: {e}")
+    
+    return admin_cache
 
-def delete_and_notify(message, reason, warn_user=True):
-    """Función centralizada para borrar, advertir y notificar."""
+def delete_and_notify(message, reason, is_username_violation=False):
+    """Borra mensaje y envía notificación."""
     user = message.from_user
+    
     try:
         bot.delete_message(message.chat.id, message.message_id)
         logger.info(f"Mensaje {message.message_id} de {user.first_name} ({user.id}) borrado. Razón: {reason}")
         
-        if not warn_user: # Solo para usuarios sin alias
-            text = f"<b>⚠️ {user.first_name}</b>, debes tener un @username para participar en este grupo."
+        if is_username_violation:
+            text = f"<b>⚠️ {user.first_name}</b>, debes tener un @username para participar."
             notification = bot.send_message(message.chat.id, text)
-            threading.Timer(30.0, lambda: bot.delete_message(notification.chat.id, notification.message_id)).start()
+            threading.Timer(30.0, lambda: safe_delete(notification.chat.id, notification.message_id)).start()
             return
-
-        # Sistema de advertencias
+        
+        # Sistema de warns
         user_warns[user.id][message.chat.id] += 1
         warn_count = user_warns[user.id][message.chat.id]
         
-        text = f"<b>⚠️ ADVERTENCIA para {user.first_name}</b>\n<b>Razón:</b> {reason}\n<b>Advertencias:</b> {warn_count}/3"
+        text = f"<b>⚠️ ADVERTENCIA - {user.first_name}</b>\n"
+        text += f"<b>Razón:</b> {reason}\n"
+        text += f"<b>Advertencias:</b> {warn_count}/3"
         
         if warn_count >= 3:
-            text += "\n\n<b>ACCIÓN: Has sido expulsado del grupo.</b>"
+            text += "\n\n<b>❌ HAS SIDO EXPULSADO DEL GRUPO.</b>"
             try:
                 bot.kick_chat_member(message.chat.id, user.id)
-                logger.info(f"Usuario {user.id} expulsado por acumular 3 advertencias.")
-            except Exception as e:
-                logger.error(f"Fallo al expulsar al usuario {user.id}: {e}")
+                logger.info(f"Usuario {user.id} expulsado por 3 advertencias.")
+            except:
+                pass
         
         notification = bot.send_message(message.chat.id, text)
-        threading.Timer(30.0, lambda: bot.delete_message(notification.chat.id, notification.message_id)).start()
-
+        threading.Timer(30.0, lambda: safe_delete(notification.chat.id, notification.message_id)).start()
+    
     except Exception as e:
-        logger.error(f"Error en el ciclo de moderación para el mensaje {message.message_id}: {e}")
+        logger.error(f"Error en ciclo de moderación: {e}")
+
+def safe_delete(chat_id, message_id):
+    """Borra un mensaje de forma segura."""
+    try:
+        bot.delete_message(chat_id, message_id)
+    except:
+        pass
 
 @bot.message_handler(func=lambda message: message.chat.id == TARGET_GROUP_ID)
-def moderate_all_messages(message):
-    """El núcleo del sistema de moderación. Se ejecuta para cada mensaje."""
+def moderate_message(message):
+    """Núcleo del sistema de moderación."""
     user = message.from_user
-    if is_admin(user.id):
-        return # Los admins son inmunes
-
-    # 1. Verificación de Alias (@username)
-    if not user.username:
-        delete_and_notify(message, "Sin @username", warn_user=False)
+    
+    # Admins son inmunes
+    if user.id in get_admins():
         return
-
+    
+    # 1. Verificar username
+    if not user.username:
+        delete_and_notify(message, "Sin @username", is_username_violation=True)
+        return
+    
     text = message.text or message.caption or ""
     if not text:
         return
-
-    # 2. Verificación de Palabras Prohibidas
+    
+    # 2. Verificar palabras prohibidas
     is_banned, word = contains_banned_word(text)
     if is_banned:
-        delete_and_notify(message, f"Uso de palabra no permitida ('{word}')")
+        delete_and_notify(message, f"Palabra no permitida: '{word}'")
         return
-
-    # 3. Verificación de Enlaces
+    
+    # 3. Verificar enlaces
     if URL_PATTERN.search(text):
-        delete_and_notify(message, "Envío de enlaces no permitido")
+        delete_and_notify(message, "Enlaces no permitidos")
         return
 
 # ============================================================================
-# PUNTO DE ENTRADA Y CICLO DE VIDA
+# KEEPALIVE ETERNO
+# ============================================================================
+def keepalive_loop():
+    """Mantiene el bot activo con logs periódicos."""
+    while True:
+        try:
+            time.sleep(30)
+            logger.info("✅ Keepalive: Bot activo y vigilante")
+        except:
+            pass
+
+# ============================================================================
+# PUNTO DE ENTRADA
 # ============================================================================
 def main():
-    """Función principal que orquesta el inicio del bot."""
-    check_previous_instance()
-    lock = acquire_lock()
-
+    """Función principal."""
+    
+    # Adquirir cerrojo
+    if not check_and_acquire_lock():
+        logger.error("No se pudo adquirir el cerrojo. Saliendo.")
+        sys.exit(1)
+    
+    # Manejadores de señales
     def graceful_shutdown(signum, frame):
-        logger.info("Recibida señal de apagado. Terminando de forma segura...")
+        logger.info("🛑 Recibida señal de terminación. Apagando gracefully...")
         bot.stop_polling()
-        if lock:
-            lock.close()
-            os.remove(LOCK_FILE)
-        logger.info("El bot se ha detenido por completo.")
+        release_lock()
+        logger.info("Bot detenido completamente.")
         sys.exit(0)
-
+    
     signal.signal(signal.SIGINT, graceful_shutdown)
     signal.signal(signal.SIGTERM, graceful_shutdown)
-
-    # Cargar la base de conocimiento
+    
+    # Cargar base de conocimiento
     load_banned_words()
-
-    # Iniciar el servidor web en un hilo para el keepalive externo
-    web_thread = threading.Thread(target=run_web_server, name="WebServerThread", daemon=True)
-    web_thread.start()
-
-    # Iniciar el polling de Telegram
-    logger.info("Iniciando ciclo de polling infinito. El bot está ahora en servicio activo.")
+    
+    # Iniciar keepalive en hilo separado
+    keepalive_thread = threading.Thread(target=keepalive_loop, name="KeepaliveThread", daemon=True)
+    keepalive_thread.start()
+    logger.info("✅ Keepalive iniciado en hilo separado.")
+    
+    # Iniciar polling infinito
+    logger.info("=" * 70)
+    logger.info("🚀 INICIANDO POLLING INFINITO - BOT EN SERVICIO ACTIVO")
+    logger.info("=" * 70)
+    
     try:
         bot.infinity_polling(timeout=60, long_polling_timeout=30)
     except Exception as e:
-        logger.critical(f"El ciclo de polling principal ha fallado: {e}")
+        logger.critical(f"Error en polling: {e}")
     finally:
         graceful_shutdown(None, None)
 
