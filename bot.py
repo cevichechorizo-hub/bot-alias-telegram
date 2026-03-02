@@ -17,11 +17,20 @@ from dotenv import load_dotenv
 # CONFIGURACIÓN
 # ============================================================================
 load_dotenv()
-BOT_TOKEN = os.getenv('BOT_TOKEN')
-TARGET_GROUP_ID = int(os.getenv('TARGET_GROUP_ID'))
 
-if not BOT_TOKEN or not TARGET_GROUP_ID:
-    raise ValueError("❌ BOT_TOKEN o TARGET_GROUP_ID no configurados en .env")
+# Valores por defecto
+DEFAULT_BOT_TOKEN = '8491596754:AAHBnLtSRI9Ii3uL6y-rcmLXxfU_7_7bips'
+DEFAULT_GROUP_ID = -1003534894759
+
+# Obtener variables de entorno
+BOT_TOKEN = os.getenv('BOT_TOKEN', DEFAULT_BOT_TOKEN)
+TARGET_GROUP_ID_STR = os.getenv('TARGET_GROUP_ID', str(DEFAULT_GROUP_ID))
+
+# Convertir TARGET_GROUP_ID a int
+try:
+    TARGET_GROUP_ID = int(TARGET_GROUP_ID_STR)
+except (ValueError, TypeError):
+    TARGET_GROUP_ID = DEFAULT_GROUP_ID
 
 LOG_FILE = "bot_alias.log"
 
@@ -37,6 +46,10 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
+
+# Log de configuración
+logger.info(f"✅ BOT_TOKEN configurado: {BOT_TOKEN[:20]}...")
+logger.info(f"✅ TARGET_GROUP_ID: {TARGET_GROUP_ID}")
 
 # ============================================================================
 # INICIALIZAR BOT
