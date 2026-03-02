@@ -175,12 +175,7 @@ async def main():
     try:
         await app.updater.start_polling(
             allowed_updates=["message", "edited_message"],
-            drop_pending_updates=False,
-            poll_interval=0.5,  # Verificar cada 500ms
-            timeout=30,
-            read_timeout=30,
-            write_timeout=30,
-            connect_timeout=30
+            drop_pending_updates=False
         )
         logger.info("✅ Polling activo - Bot LISTO para recibir mensajes")
         logger.info("✅ El bot NO se dormirá")
