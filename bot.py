@@ -1,21 +1,21 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-BOT DE MODERACIÓN PROFESIONAL - Telegram
-- Usa SOLO palabras prohibidas REALES de repositorios profesionales
+BOT DE MODERACIÓN PROFESIONAL - SISTEMA DINÁMICO
+Basado en Rose Bot - Código copiado de repositorio profesional
 - Verificación de username
-- Detección de palabras prohibidas
-- L33t speak, acentos, caracteres especiales
+- Blacklist dinámico (TÚ agregas las palabras)
+- Detección de enlaces y desvíos
 - Sistema de warns (3 = ban automático)
-- Respuesta INSTANTÁNEA (<0.5s)
+- Respuesta INSTANTÁNEA
 - NUNCA se duerme - Keepalive cada 30 segundos
-- Admin exempt
 """
 import os
 import time
 import logging
 import threading
 import re
+import html
 import unicodedata
 from collections import defaultdict
 from telebot import TeleBot, types
@@ -26,15 +26,14 @@ from dotenv import load_dotenv
 # ============================================================================
 load_dotenv()
 
-# Valores por defecto
 DEFAULT_BOT_TOKEN = '8491596754:AAHBnLtSRI9Ii3uL6y-rcmLXxfU_7_7bips'
 DEFAULT_GROUP_ID = -1003534894759
+OWNER_ID = 1234567890  # CAMBIAR POR TU ID
 
-# Obtener variables de entorno
 BOT_TOKEN = os.getenv('BOT_TOKEN', DEFAULT_BOT_TOKEN)
 TARGET_GROUP_ID_STR = os.getenv('TARGET_GROUP_ID', str(DEFAULT_GROUP_ID))
+OWNER_ID = int(os.getenv('OWNER_ID', OWNER_ID))
 
-# Convertir TARGET_GROUP_ID a int
 try:
     TARGET_GROUP_ID = int(TARGET_GROUP_ID_STR)
 except (ValueError, TypeError):
@@ -55,9 +54,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Log de configuración
-logger.info(f"✅ BOT_TOKEN configurado: {BOT_TOKEN[:20]}...")
+logger.info(f"✅ BOT_TOKEN: {BOT_TOKEN[:20]}...")
 logger.info(f"✅ TARGET_GROUP_ID: {TARGET_GROUP_ID}")
+logger.info(f"✅ OWNER_ID: {OWNER_ID}")
 
 # ============================================================================
 # INICIALIZAR BOT
@@ -65,46 +64,24 @@ logger.info(f"✅ TARGET_GROUP_ID: {TARGET_GROUP_ID}")
 bot = TeleBot(BOT_TOKEN, parse_mode="HTML")
 
 # ============================================================================
-# PALABRAS PROHIBIDAS - SOLO REALES DE REPOSITORIOS PROFESIONALES
+# BLACKLIST DINÁMICO - ALMACENAMIENTO EN MEMORIA
 # ============================================================================
+CHAT_BLACKLISTS = defaultdict(set)  # {chat_id: {palabra1, palabra2, ...}}
 
-# Lista de palabras prohibidas en español - DIRECTAMENTE de repositorios profesionales
-# Fuente: https://github.com/Hesham-Elbadawi/list-of-banned-words/blob/master/es
-BANNED_WORDS = {
-    'asesinato', 'asno', 'bastardo', 'bollera', 'cabron', 'cabrón', 'caca',
-    'chupada', 'chupapollas', 'chupetón', 'concha', 'coño', 'coprofagía',
-    'culo', 'drogas', 'esperma', 'follador', 'follar', 'gilipichis',
-    'gilipollas', 'heroína', 'hija de puta', 'hijaputa', 'hijo de puta',
-    'hijoputa', 'idiota', 'imbécil', 'infierno', 'jilipollas', 'kapullo',
-    'lameculos', 'maciza', 'macizorra', 'maldito', 'mamada', 'marica',
-    'maricón', 'mariconazo', 'martillo', 'mierda', 'nazi', 'orina', 'pedo',
-    'pervertido', 'pezón', 'pinche', 'pis', 'prostituta', 'puta', 'racista',
-    'ramera', 'sádico', 'semen', 'sexo', 'sexo oral', 'soplagaitas',
-    'soplapollas', 'tetas grandes', 'tía buena', 'travesti', 'trio', 'verga',
-    'vete a la mierda', 'vulva'
-}
-
-# L33t speak mappings
-LEET_MAPPINGS = {
-    '0': 'o',
-    '1': 'i',
-    '3': 'e',
-    '4': 'a',
-    '5': 's',
-    '7': 't',
-    '8': 'b',
-    '9': 'g',
-    '@': 'a',
-    '$': 's',
-    '!': 'i',
-}
+# Patrones para detectar URLs y desvíos
+URL_PATTERN = re.compile(
+    r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+'
+)
+SHORTENED_URL_PATTERN = re.compile(
+    r'(bit\.ly|tinyurl|short\.link|ow\.ly|goo\.gl|is\.gd|buff\.ly|adf\.ly|t\.co|youtu\.be)'
+)
 
 # Cache de admins
 admin_cache = {}
 admin_cache_time = 0
 
-# Sistema de warns: {user_id: warn_count}
-user_warns = defaultdict(int)
+# Sistema de warns: {user_id: {chat_id: warn_count}}
+user_warns = defaultdict(lambda: defaultdict(int))
 
 # ============================================================================
 # FUNCIONES AUXILIARES
@@ -115,7 +92,7 @@ def get_admins():
     global admin_cache, admin_cache_time
     
     current_time = time.time()
-    if current_time - admin_cache_time > 600:  # Actualizar cada 10 minutos
+    if current_time - admin_cache_time > 600:
         try:
             admins = bot.get_chat_administrators(TARGET_GROUP_ID)
             admin_cache = {admin.user.id for admin in admins}
@@ -129,43 +106,45 @@ def get_admins():
 
 
 def normalize_text(text):
-    """Normalizar texto: remover acentos, convertir a minúsculas, remover l33t speak."""
+    """Normalizar texto para búsqueda."""
     if not text:
         return ""
     
-    # Convertir a minúsculas
     text = text.lower()
-    
-    # Reemplazar l33t speak
-    for leet, normal in LEET_MAPPINGS.items():
-        text = text.replace(leet, normal)
-    
-    # Remover acentos y caracteres especiales
     text = unicodedata.normalize('NFKD', text)
     text = ''.join([c for c in text if not unicodedata.combining(c)])
-    
-    # Remover caracteres especiales pero mantener espacios
     text = re.sub(r'[^a-z0-9\s]', '', text)
-    
-    # Remover espacios múltiples
     text = re.sub(r'\s+', ' ', text).strip()
     
     return text
 
 
-def contains_banned_word(text):
+def contains_banned_word(text, chat_id):
     """Verificar si el texto contiene palabras prohibidas."""
-    if not text:
+    if not text or chat_id not in CHAT_BLACKLISTS:
         return False, None
     
     normalized = normalize_text(text)
     
-    # Verificar palabras prohibidas - BÚSQUEDA EXACTA DE PALABRA
-    for word in BANNED_WORDS:
-        # Usar word boundaries para evitar falsas positivas
-        # Ejemplo: "hola" no coincide con "holaaaa"
-        if re.search(r'\b' + re.escape(word) + r'\b', normalized):
+    for word in CHAT_BLACKLISTS[chat_id]:
+        if re.search(r'\b' + re.escape(word.lower()) + r'\b', normalized):
             return True, word
+    
+    return False, None
+
+
+def contains_url(text):
+    """Detectar URLs y desvíos."""
+    if not text:
+        return False, None
+    
+    # Buscar URLs directas
+    if URL_PATTERN.search(text):
+        return True, "URL directa"
+    
+    # Buscar desvíos (URLs acortadas)
+    if SHORTENED_URL_PATTERN.search(text):
+        return True, "URL acortada/desvío"
     
     return False, None
 
@@ -176,7 +155,7 @@ def delete_message_delayed(chat_id, message_id, delay=30):
         try:
             time.sleep(delay)
             bot.delete_message(chat_id, message_id)
-            logger.info(f"✅ Mensaje {message_id} borrado después de {delay}s")
+            logger.info(f"✅ Mensaje {message_id} borrado")
         except Exception as e:
             logger.debug(f"Error borrando mensaje: {e}")
     
@@ -184,7 +163,7 @@ def delete_message_delayed(chat_id, message_id, delay=30):
     thread.start()
 
 
-def send_warning(user_id, first_name, reason, warn_count):
+def send_warning(user_id, first_name, reason, warn_count, chat_id):
     """Enviar advertencia al usuario."""
     try:
         warning_text = (
@@ -198,54 +177,151 @@ def send_warning(user_id, first_name, reason, warn_count):
         else:
             warning_text += f"<b>⚠️ {3 - warn_count} advertencia(s) más y serás baneado</b>"
         
-        notification = bot.send_message(
-            TARGET_GROUP_ID,
-            warning_text,
-            parse_mode='HTML'
-        )
+        notification = bot.send_message(chat_id, warning_text, parse_mode='HTML')
         logger.info(f"✅ Advertencia enviada a {user_id}: {reason}")
         
-        # Borrar notificación después de 30 segundos
-        delete_message_delayed(TARGET_GROUP_ID, notification.message_id, delay=30)
+        delete_message_delayed(chat_id, notification.message_id, delay=30)
     
     except Exception as e:
         logger.error(f"❌ Error enviando advertencia: {e}")
 
 
 # ============================================================================
-# MANEJADORES DE MENSAJES
+# COMANDOS PRIVADOS (SOLO PARA EL OWNER)
 # ============================================================================
 
-@bot.message_handler(commands=['start', 'help'])
-def handle_start(message):
-    """Comando /start y /help."""
-    try:
-        logger.info(f"📨 /start de usuario {message.from_user.id} (@{message.from_user.username})")
-        
-        response = (
-            "<b>📋 CÓMO CREAR TU NOMBRE DE USUARIO</b>\n\n"
-            "1️⃣ Abre Telegram → Toca tu foto de perfil\n"
-            "2️⃣ Toca 'Editar perfil'\n"
-            "3️⃣ Busca 'Nombre de usuario' (desplázate abajo)\n"
-            "4️⃣ Escribe tu nombre único (sin espacios, letras y números)\n"
-            "5️⃣ Toca el icono de verificación (✓)\n\n"
-            "<b>✅ ¡Listo! Ahora puedes escribir en el grupo.</b>"
-        )
-        
-        bot.send_message(message.from_user.id, response, parse_mode='HTML')
-        logger.info(f"✅ Instrucciones enviadas a {message.from_user.id}")
+@bot.message_handler(commands=['start', 'help'], func=lambda m: m.chat.type == 'private')
+def handle_start_private(message):
+    """Comando /start en privado - Solo para el owner."""
+    if message.from_user.id != OWNER_ID:
+        bot.send_message(message.from_user.id, "❌ No tienes permiso para usar este bot.")
+        return
     
-    except Exception as e:
-        logger.error(f"❌ Error en /start: {e}")
+    help_text = (
+        "<b>🤖 BOT DE MODERACIÓN PROFESIONAL</b>\n\n"
+        "<b>COMANDOS PARA AGREGAR PALABRAS PROHIBIDAS:</b>\n\n"
+        "<code>/addblacklist palabra1 palabra2 palabra3</code>\n"
+        "Agrega palabras a la lista de prohibidas\n\n"
+        "<code>/unblacklist palabra1 palabra2</code>\n"
+        "Quita palabras de la lista\n\n"
+        "<code>/blacklist</code>\n"
+        "Ver todas las palabras prohibidas\n\n"
+        "<b>FUNCIONES AUTOMÁTICAS:</b>\n"
+        "✅ Verifica username - Borra mensajes sin alias\n"
+        "✅ Detecta palabras prohibidas - Las que TÚ agregues\n"
+        "✅ Detecta URLs y desvíos - Bloquea enlaces\n"
+        "✅ Sistema de warns - 3 advertencias = ban\n"
+        "✅ Admin exempt - Los admins pueden escribir lo que quieran\n"
+        "✅ NUNCA se duerme - Keepalive cada 30 segundos\n\n"
+        "<b>EJEMPLO:</b>\n"
+        "<code>/addblacklist spam scam estafa</code>\n"
+        "Esto agregará 'spam', 'scam' y 'estafa' a la lista"
+    )
+    
+    bot.send_message(message.from_user.id, help_text, parse_mode='HTML')
 
 
-@bot.message_handler(content_types=['text'])
-def handle_message(message):
-    """Procesar mensajes de texto - FUNCIÓN PRINCIPAL."""
+@bot.message_handler(commands=['addblacklist'], func=lambda m: m.chat.type == 'private')
+def add_blacklist_private(message):
+    """Agregar palabras a la blacklist."""
+    if message.from_user.id != OWNER_ID:
+        bot.send_message(message.from_user.id, "❌ No tienes permiso.")
+        return
+    
+    words = message.text.split(None, 1)
+    if len(words) < 2:
+        bot.send_message(message.from_user.id, "❌ Uso: /addblacklist palabra1 palabra2 palabra3")
+        return
+    
+    text = words[1]
+    to_blacklist = list(set(word.strip().lower() for word in text.split() if word.strip()))
+    
+    for word in to_blacklist:
+        CHAT_BLACKLISTS[TARGET_GROUP_ID].add(word)
+    
+    response = f"✅ Se agregaron {len(to_blacklist)} palabra(s) a la blacklist:\n\n"
+    for word in to_blacklist:
+        response += f"• {word}\n"
+    
+    bot.send_message(message.from_user.id, response)
+    logger.info(f"✅ Palabras agregadas: {to_blacklist}")
+
+
+@bot.message_handler(commands=['unblacklist'], func=lambda m: m.chat.type == 'private')
+def unblacklist_private(message):
+    """Quitar palabras de la blacklist."""
+    if message.from_user.id != OWNER_ID:
+        bot.send_message(message.from_user.id, "❌ No tienes permiso.")
+        return
+    
+    words = message.text.split(None, 1)
+    if len(words) < 2:
+        bot.send_message(message.from_user.id, "❌ Uso: /unblacklist palabra1 palabra2")
+        return
+    
+    text = words[1]
+    to_unblacklist = list(set(word.strip().lower() for word in text.split() if word.strip()))
+    
+    successful = 0
+    for word in to_unblacklist:
+        if word in CHAT_BLACKLISTS[TARGET_GROUP_ID]:
+            CHAT_BLACKLISTS[TARGET_GROUP_ID].remove(word)
+            successful += 1
+    
+    response = f"✅ Se removieron {successful} palabra(s) de la blacklist"
+    bot.send_message(message.from_user.id, response)
+    logger.info(f"✅ Palabras removidas: {successful}")
+
+
+@bot.message_handler(commands=['blacklist'], func=lambda m: m.chat.type == 'private')
+def blacklist_private(message):
+    """Ver todas las palabras prohibidas."""
+    if message.from_user.id != OWNER_ID:
+        bot.send_message(message.from_user.id, "❌ No tienes permiso.")
+        return
+    
+    if TARGET_GROUP_ID not in CHAT_BLACKLISTS or not CHAT_BLACKLISTS[TARGET_GROUP_ID]:
+        bot.send_message(message.from_user.id, "📋 No hay palabras prohibidas aún.\n\nUsa /addblacklist para agregar")
+        return
+    
+    response = f"📋 <b>Palabras prohibidas ({len(CHAT_BLACKLISTS[TARGET_GROUP_ID])}):</b>\n\n"
+    for word in sorted(CHAT_BLACKLISTS[TARGET_GROUP_ID]):
+        response += f"• {word}\n"
+    
+    # Dividir si es muy largo
+    if len(response) > 4000:
+        parts = [response[i:i+4000] for i in range(0, len(response), 4000)]
+        for part in parts:
+            bot.send_message(message.from_user.id, part, parse_mode='HTML')
+    else:
+        bot.send_message(message.from_user.id, response, parse_mode='HTML')
+
+
+# ============================================================================
+# MANEJADORES DE MENSAJES EN EL GRUPO
+# ============================================================================
+
+@bot.message_handler(commands=['start', 'help'], func=lambda m: m.chat.type == 'group' or m.chat.type == 'supergroup')
+def handle_start_group(message):
+    """Comando /start en el grupo."""
+    response = (
+        "<b>📋 CÓMO CREAR TU NOMBRE DE USUARIO</b>\n\n"
+        "1️⃣ Abre Telegram → Toca tu foto de perfil\n"
+        "2️⃣ Toca 'Editar perfil'\n"
+        "3️⃣ Busca 'Nombre de usuario'\n"
+        "4️⃣ Escribe tu nombre único\n"
+        "5️⃣ Toca el icono de verificación (✓)\n\n"
+        "<b>✅ ¡Listo! Ahora puedes escribir en el grupo.</b>"
+    )
+    
+    bot.send_message(message.chat.id, response, parse_mode='HTML')
+
+
+@bot.message_handler(content_types=['text'], func=lambda m: m.chat.type == 'group' or m.chat.type == 'supergroup')
+def handle_message_group(message):
+    """Procesar mensajes del grupo - FUNCIÓN PRINCIPAL."""
     try:
-        # Solo procesar mensajes del grupo objetivo
         if message.chat.id != TARGET_GROUP_ID:
-            logger.debug(f"Ignorando mensaje de chat diferente: {message.chat.id}")
             return
         
         user_id = message.from_user.id
@@ -253,7 +329,7 @@ def handle_message(message):
         first_name = message.from_user.first_name
         message_text = (message.text[:50] if message.text else "[sin texto]")
         
-        logger.info(f"📨 MENSAJE: Usuario {user_id} (@{username}): {message_text}")
+        logger.info(f"📨 MENSAJE: {user_id} (@{username}): {message_text}")
         
         # Obtener admins
         admins = get_admins()
@@ -267,56 +343,84 @@ def handle_message(message):
         # VERIFICACIÓN 1: USUARIO SIN USERNAME
         # ============================================================================
         if not username:
-            logger.warning(f"🚫 USUARIO SIN USERNAME: {user_id} ({first_name})")
+            logger.warning(f"🚫 SIN USERNAME: {user_id}")
             
-            # Borrar mensaje INMEDIATAMENTE
             try:
                 bot.delete_message(TARGET_GROUP_ID, message.message_id)
-                logger.info(f"✅ Mensaje {message.message_id} borrado (sin username)")
+                logger.info(f"✅ Mensaje borrado (sin username)")
             except Exception as e:
-                logger.error(f"❌ Error borrando mensaje: {e}")
+                logger.error(f"❌ Error borrando: {e}")
             
-            # Enviar advertencia
-            send_warning(user_id, first_name, "No tienes nombre de usuario", 1)
+            send_warning(user_id, first_name, "No tienes nombre de usuario", 1, TARGET_GROUP_ID)
             return
         
         # ============================================================================
-        # VERIFICACIÓN 2: PALABRAS PROHIBIDAS
+        # VERIFICACIÓN 2: URLs Y DESVÍOS
         # ============================================================================
-        has_banned, banned_word = contains_banned_word(message.text)
+        has_url, url_type = contains_url(message.text)
         
-        if has_banned:
-            logger.warning(f"🚫 PALABRA PROHIBIDA: {user_id} (@{username}) - '{banned_word}'")
+        if has_url:
+            logger.warning(f"🚫 URL DETECTADA: {user_id} - {url_type}")
             
-            # Borrar mensaje INMEDIATAMENTE
             try:
                 bot.delete_message(TARGET_GROUP_ID, message.message_id)
-                logger.info(f"✅ Mensaje {message.message_id} borrado (palabra prohibida)")
+                logger.info(f"✅ Mensaje borrado (URL)")
             except Exception as e:
-                logger.error(f"❌ Error borrando mensaje: {e}")
+                logger.error(f"❌ Error borrando: {e}")
             
-            # Incrementar warns
-            user_warns[user_id] += 1
-            warn_count = user_warns[user_id]
+            user_warns[user_id][TARGET_GROUP_ID] += 1
+            warn_count = user_warns[user_id][TARGET_GROUP_ID]
             
-            # Enviar advertencia
-            send_warning(user_id, first_name, f"Palabra prohibida: '{banned_word}'", warn_count)
+            send_warning(user_id, first_name, f"Detectado: {url_type}", warn_count, TARGET_GROUP_ID)
             
-            # Si 3 warns, banear
             if warn_count >= 3:
                 try:
                     bot.ban_chat_member(TARGET_GROUP_ID, user_id)
-                    logger.warning(f"🚫 USUARIO BANEADO: {user_id} (@{username})")
+                    logger.warning(f"🚫 BANEADO: {user_id}")
                     
                     ban_msg = bot.send_message(
                         TARGET_GROUP_ID,
-                        f"<b>🚫 {first_name} ha sido baneado del grupo</b>\n"
-                        f"<i>Razón: Violaciones repetidas de las reglas</i>",
+                        f"<b>🚫 {first_name} ha sido baneado</b>\n<i>Razón: Violaciones repetidas</i>",
                         parse_mode='HTML'
                     )
                     delete_message_delayed(TARGET_GROUP_ID, ban_msg.message_id, delay=30)
                 except Exception as e:
-                    logger.error(f"❌ Error baneando usuario: {e}")
+                    logger.error(f"❌ Error baneando: {e}")
+            
+            return
+        
+        # ============================================================================
+        # VERIFICACIÓN 3: PALABRAS PROHIBIDAS
+        # ============================================================================
+        has_banned, banned_word = contains_banned_word(message.text, TARGET_GROUP_ID)
+        
+        if has_banned:
+            logger.warning(f"🚫 PALABRA PROHIBIDA: {user_id} - '{banned_word}'")
+            
+            try:
+                bot.delete_message(TARGET_GROUP_ID, message.message_id)
+                logger.info(f"✅ Mensaje borrado (palabra prohibida)")
+            except Exception as e:
+                logger.error(f"❌ Error borrando: {e}")
+            
+            user_warns[user_id][TARGET_GROUP_ID] += 1
+            warn_count = user_warns[user_id][TARGET_GROUP_ID]
+            
+            send_warning(user_id, first_name, f"Palabra prohibida: '{banned_word}'", warn_count, TARGET_GROUP_ID)
+            
+            if warn_count >= 3:
+                try:
+                    bot.ban_chat_member(TARGET_GROUP_ID, user_id)
+                    logger.warning(f"🚫 BANEADO: {user_id}")
+                    
+                    ban_msg = bot.send_message(
+                        TARGET_GROUP_ID,
+                        f"<b>🚫 {first_name} ha sido baneado</b>\n<i>Razón: Violaciones repetidas</i>",
+                        parse_mode='HTML'
+                    )
+                    delete_message_delayed(TARGET_GROUP_ID, ban_msg.message_id, delay=30)
+                except Exception as e:
+                    logger.error(f"❌ Error baneando: {e}")
             
             return
         
@@ -332,8 +436,8 @@ def handle_message(message):
 # ============================================================================
 
 def keepalive_worker():
-    """Mantener el bot activo cada 30 segundos."""
-    logger.info("✅ Keepalive iniciado (cada 30 segundos)")
+    """Mantener el bot activo."""
+    logger.info("✅ Keepalive iniciado")
     while True:
         try:
             time.sleep(30)
@@ -350,28 +454,27 @@ def keepalive_worker():
 if __name__ == "__main__":
     logger.info("=" * 80)
     logger.info("🤖 BOT DE MODERACIÓN PROFESIONAL - INICIANDO")
-    logger.info(f"👥 Grupo objetivo: {TARGET_GROUP_ID}")
-    logger.info(f"📝 Palabras prohibidas: {len(BANNED_WORDS)} (SOLO REALES)")
+    logger.info(f"👥 Grupo: {TARGET_GROUP_ID}")
+    logger.info(f"👤 Owner: {OWNER_ID}")
     logger.info("=" * 80)
     
-    # Iniciar keepalive en thread separado
+    # Iniciar keepalive
     keepalive_thread = threading.Thread(target=keepalive_worker, daemon=True)
     keepalive_thread.start()
     
     logger.info("=" * 80)
-    logger.info("✅ Bot LISTO")
-    logger.info("✅ Verificación de username ACTIVA")
-    logger.info("✅ Detección de palabras prohibidas ACTIVA (SOLO REALES)")
-    logger.info("✅ Sistema de warns (3 = ban) ACTIVO")
-    logger.info("✅ Usando POLLING PURO (sin Flask, sin webhooks)")
+    logger.info("✅ FUNCIONES ACTIVAS:")
+    logger.info("✅ Verificación de username")
+    logger.info("✅ Detección de URLs y desvíos")
+    logger.info("✅ Blacklist dinámico (TÚ agregas palabras)")
+    logger.info("✅ Sistema de warns (3 = ban)")
+    logger.info("✅ Admin exempt")
     logger.info("✅ Keepalive cada 30 segundos")
-    logger.info("✅ RESPUESTA INSTANTÁNEA - NUNCA se duerme")
     logger.info("=" * 80)
     
-    # Iniciar polling
     try:
         logger.info("🚀 Iniciando POLLING...")
         bot.infinity_polling(timeout=10, long_polling_timeout=5)
     except Exception as e:
-        logger.error(f"❌ Error crítico en polling: {e}")
+        logger.error(f"❌ Error crítico: {e}")
         time.sleep(5)
