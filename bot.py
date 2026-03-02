@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-BOT MODERADOR V3 - MEJORADO
-Mensajes profesionales, instrucciones claras, 24/7 sin intervención.
+BOT MODERADOR V4 - FINAL
+Mensajes limpios, estéticos, sin errores de formato.
 """
 
 import os
@@ -28,7 +28,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 logger.info("=" * 70)
-logger.info("🤖 BOT MODERADOR V3 - INICIANDO")
+logger.info("🤖 BOT MODERADOR V4 - FINAL")
 logger.info(f"TOKEN: {BOT_TOKEN[:30]}...")
 logger.info(f"GRUPO: {TARGET_GROUP_ID}")
 logger.info("=" * 70)
@@ -97,56 +97,42 @@ def get_admins():
 # WARNS
 user_warns = defaultdict(lambda: defaultdict(int))
 
-# MENSAJES MEJORADOS
+# MENSAJES LIMPIOS Y ESTÉTICOS
 def get_no_alias_message(user_name):
-    """Mensaje profesional para usuarios sin alias."""
-    return f"""
-<b>⚠️ {user_name}, NO TIENES ALIAS</b>
+    """Mensaje limpio para usuarios sin alias."""
+    return f"""⚠️ <b>{user_name}</b>, no tienes alias
 
-<b>Problema:</b> No puedes escribir en este grupo sin un @username (alias).
+<b>Problema:</b>
+No puedes escribir en este grupo sin un nombre de usuario (alias).
 
-<b>¿Cómo poner tu alias?</b>
-
-<b>En Telegram:</b>
-1. Abre tu perfil (toca tu foto de perfil)
+<b>Solución:</b>
+1. Abre tu perfil en Telegram
 2. Toca "Editar perfil"
 3. Busca "Nombre de usuario"
-4. Escribe tu alias (sin espacios, solo letras y números)
+4. Crea tu alias (sin espacios)
 5. Guarda los cambios
 
-<b>Después de poner tu alias, podrás escribir aquí sin problemas.</b>
+Una vez hayas puesto tu alias, podrás escribir aquí sin problemas."""
 
-<i>Este mensaje se borrará en 30 segundos.</i>
-"""
+def get_banned_word_message(user_name, warns):
+    """Mensaje limpio para palabra prohibida."""
+    msg = f"""⚠️ <b>{user_name}</b>, contenido no permitido
 
-def get_banned_word_message(user_name, word, warns):
-    """Mensaje profesional para palabra prohibida."""
-    msg = f"""
-<b>⚠️ ADVERTENCIA - {user_name}</b>
-
-<b>Razón:</b> Contenido no permitido en este grupo.
-
-<b>Advertencias:</b> {warns}/3
-"""
-    if warns >= 3:
-        msg += "\n<b>❌ HAS SIDO EXPULSADO DEL GRUPO.</b>\n<i>Contacta a un administrador si crees que fue un error.</i>"
-    else:
-        msg += f"\n<i>Te quedan {3 - warns} advertencia(s) antes de ser expulsado.</i>"
+<b>Advertencias:</b> {warns}/3"""
     
-    msg += "\n\n<i>Este mensaje se borrará en 30 segundos.</i>"
+    if warns >= 3:
+        msg += "\n\n❌ <b>HAS SIDO EXPULSADO DEL GRUPO</b>\nContacta a un administrador si crees que fue un error."
+    else:
+        msg += f"\n\nTe quedan {3 - warns} advertencia(s) antes de ser expulsado."
+    
     return msg
 
 def get_link_message(user_name):
-    """Mensaje profesional para enlaces."""
-    return f"""
-<b>⚠️ {user_name}, ENLACES NO PERMITIDOS</b>
+    """Mensaje limpio para enlaces."""
+    return f"""⚠️ <b>{user_name}</b>, enlaces no permitidos
 
-<b>Razón:</b> Los enlaces no están permitidos en este grupo.
-
-<b>Por favor, respeta las normas del grupo.</b>
-
-<i>Este mensaje se borrará en 30 segundos.</i>
-"""
+Los enlaces no están permitidos en este grupo.
+Por favor, respeta las normas."""
 
 def safe_delete(chat_id, message_id):
     """Borra un mensaje de forma segura."""
@@ -190,7 +176,7 @@ def handle_message(message):
                 user_warns[user.id][message.chat.id] += 1
                 warns = user_warns[user.id][message.chat.id]
                 
-                msg_text = get_banned_word_message(user.first_name or "Usuario", word, warns)
+                msg_text = get_banned_word_message(user.first_name or "Usuario", warns)
                 
                 if warns >= 3:
                     try:
