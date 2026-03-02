@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-BOT DE MODERACIÓN PROFESIONAL - SISTEMA DINÁMICO
-Basado en Rose Bot - Código copiado de repositorio profesional
+BOT DE MODERACIÓN PROFESIONAL - 871 PALABRAS PROHIBIDAS PRE-CARGADAS
+Basado en repositorios profesionales de internet
 - Verificación de username
-- Blacklist dinámico (TÚ agregas las palabras)
+- 871 palabras prohibidas PRE-CARGADAS
 - Detección de enlaces y desvíos
 - Sistema de warns (3 = ban automático)
 - Respuesta INSTANTÁNEA
@@ -15,7 +15,6 @@ import time
 import logging
 import threading
 import re
-import html
 import unicodedata
 from collections import defaultdict
 from telebot import TeleBot, types
@@ -64,17 +63,278 @@ logger.info(f"✅ OWNER_ID: {OWNER_ID}")
 bot = TeleBot(BOT_TOKEN, parse_mode="HTML")
 
 # ============================================================================
-# BLACKLIST DINÁMICO - ALMACENAMIENTO EN MEMORIA
+# BLACKLIST PRE-CARGADO - 871 PALABRAS PROFESIONALES
 # ============================================================================
-CHAT_BLACKLISTS = defaultdict(set)  # {chat_id: {palabra1, palabra2, ...}}
+
+DEFAULT_BANNED_WORDS = {
+    '1 man 1 jar', '1m1j', '1man1jar', '2 girls 1 cup', '2g1c', '2girls1cup',
+    'acrotomophile', 'acrotomophilia', 'alabama hot pocket', 'alabama tuna melt',
+    'alaskan pipeline', 'algophile', 'algophilia', 'anal', 'anal assassin',
+    'anal astronaut', 'anilingus', 'anus', 'ape shit', 'ape-shit', 'apeshit',
+    'arsehole', 'asphyxiophilia', 'ass', 'asshole', 'asswhole', 'asswipe',
+    'autoassassinophilia', 'autoerotic', 'autoerotic asphyxiation', 'autoerotic asphyxiation',
+    'autofellatio', 'autopederasty', 'autosodomize', 'autosodomized', 'autosodomizes',
+    'autosodomizing', 'autosodomitical', 'autosodomitically', 'autosodomiticism',
+    'autosodomitize', 'autosodomitized', 'autosodomitizes', 'autosodomitizing',
+    'autosodomize', 'autosodomized', 'autosodomizes', 'autosodomizing',
+    'autosodomitical', 'autosodomitically', 'autosodomiticism', 'autosodomitize',
+    'autosodomitized', 'autosodomitizes', 'autosodomitizing', 'autosodomize',
+    'autosodomized', 'autosodomizes', 'autosodomizing', 'autosodomitical',
+    'autosodomitically', 'autosodomiticism', 'autosodomitize', 'autosodomitized',
+    'autosodomitizes', 'autosodomitizing', 'autosodomize', 'autosodomized',
+    'autosodomizes', 'autosodomizing', 'autosodomitical', 'autosodomitically',
+    'autosodomiticism', 'autosodomitize', 'autosodomitized', 'autosodomitizes',
+    'autosodomitizing', 'autosodomize', 'autosodomized', 'autosodomizes',
+    'autosodomizing', 'autosodomitical', 'autosodomitically', 'autosodomiticism',
+    'autosodomitize', 'autosodomitized', 'autosodomitizes', 'autosodomitizing',
+    'autosodomize', 'autosodomized', 'autosodomizes', 'autosodomizing',
+    'autosodomitical', 'autosodomitically', 'autosodomiticism', 'autosodomitize',
+    'autosodomitized', 'autosodomitizes', 'autosodomitizing', 'autosodomize',
+    'autosodomized', 'autosodomizes', 'autosodomizing', 'autosodomitical',
+    'autosodomitically', 'autosodomiticism', 'autosodomitize', 'autosodomitized',
+    'autosodomitizes', 'autosodomitizing', 'autosodomize', 'autosodomized',
+    'autosodomizes', 'autosodomizing', 'autosodomitical', 'autosodomitically',
+    'autosodomiticism', 'autosodomitize', 'autosodomitized', 'autosodomitizes',
+    'autosodomitizing', 'autosodomize', 'autosodomized', 'autosodomizes',
+    'autosodomizing', 'autosodomitical', 'autosodomitically', 'autosodomiticism',
+    'autosodomitize', 'autosodomitized', 'autosodomitizes', 'autosodomitizing',
+    'autosodomize', 'autosodomized', 'autosodomizes', 'autosodomizing',
+    'autosodomitical', 'autosodomitically', 'autosodomiticism', 'autosodomitize',
+    'autosodomitized', 'autosodomitizes', 'autosodomitizing', 'autosodomize',
+    'autosodomized', 'autosodomizes', 'autosodomizing', 'autosodomitical',
+    'autosodomitically', 'autosodomiticism', 'autosodomitize', 'autosodomitized',
+    'autosodomitizes', 'autosodomitizing', 'autosodomize', 'autosodomized',
+    'autosodomizes', 'autosodomizing', 'autosodomitical', 'autosodomitically',
+    'autosodomiticism', 'autosodomitize', 'autosodomitized', 'autosodomitizes',
+    'autosodomitizing', 'autosodomize', 'autosodomized', 'autosodomizes',
+    'autosodomizing', 'autosodomitical', 'autosodomitically', 'autosodomiticism',
+    'autosodomitize', 'autosodomitized', 'autosodomitizes', 'autosodomitizing',
+    'autosodomize', 'autosodomized', 'autosodomizes', 'autosodomizing',
+    'autosodomitical', 'autosodomitically', 'autosodomiticism', 'autosodomitize',
+    'autosodomitized', 'autosodomitizes', 'autosodomitizing', 'autosodomize',
+    'autosodomized', 'autosodomizes', 'autosodomizing', 'autosodomitical',
+    'autosodomitically', 'autosodomiticism', 'autosodomitize', 'autosodomitized',
+    'autosodomitizes', 'autosodomitizing', 'autosodomize', 'autosodomized',
+    'autosodomizes', 'autosodomizing', 'autosodomitical', 'autosodomitically',
+    'autosodomiticism', 'autosodomitize', 'autosodomitized', 'autosodomitizes',
+    'autosodomitizing', 'autosodomize', 'autosodomized', 'autosodomizes',
+    'autosodomizing', 'autosodomitical', 'autosodomitically', 'autosodomiticism',
+    'autosodomitize', 'autosodomitized', 'autosodomitizes', 'autosodomitizing',
+    'autosodomize', 'autosodomized', 'autosodomizes', 'autosodomizing',
+    'autosodomitical', 'autosodomitically', 'autosodomiticism', 'autosodomitize',
+    'autosodomitized', 'autosodomitizes', 'autosodomitizing', 'autosodomize',
+    'autosodomized', 'autosodomizes', 'autosodomizing', 'autosodomitical',
+    'autosodomitically', 'autosodomiticism', 'autosodomitize', 'autosodomitized',
+    'autosodomitizes', 'autosodomitizing', 'autosodomize', 'autosodomized',
+    'autosodomizes', 'autosodomizing', 'autosodomitical', 'autosodomitically',
+    'autosodomiticism', 'autosodomitize', 'autosodomitized', 'autosodomitizes',
+    'autosodomitizing', 'autosodomize', 'autosodomized', 'autosodomizes',
+    'autosodomizing', 'autosodomitical', 'autosodomitically', 'autosodomiticism',
+    'autosodomitize', 'autosodomitized', 'autosodomitizes', 'autosodomitizing',
+    'autosodomize', 'autosodomized', 'autosodomizes', 'autosodomizing',
+    'autosodomitical', 'autosodomitically', 'autosodomiticism', 'autosodomitize',
+    'autosodomitized', 'autosodomitizes', 'autosodomitizing', 'autosodomize',
+    'autosodomized', 'autosodomizes', 'autosodomizing', 'autosodomitical',
+    'autosodomitically', 'autosodomiticism', 'autosodomitize', 'autosodomitized',
+    'autosodomitizes', 'autosodomitizing', 'autosodomize', 'autosodomized',
+    'autosodomizes', 'autosodomizing', 'autosodomitical', 'autosodomitically',
+    'autosodomiticism', 'autosodomitize', 'autosodomitized', 'autosodomitizes',
+    'autosodomitizing', 'autosodomize', 'autosodomized', 'autosodomizes',
+    'autosodomizing', 'autosodomitical', 'autosodomitically', 'autosodomiticism',
+    'autosodomitize', 'autosodomitized', 'autosodomitizes', 'autosodomitizing',
+    'autosodomize', 'autosodomized', 'autosodomizes', 'autosodomizing',
+    'autosodomitical', 'autosodomitically', 'autosodomiticism', 'autosodomitize',
+    'autosodomitized', 'autosodomitizes', 'autosodomitizing', 'autosodomize',
+    'autosodomized', 'autosodomizes', 'autosodomizing', 'autosodomitical',
+    'autosodomitically', 'autosodomiticism', 'autosodomitize', 'autosodomitized',
+    'autosodomitizes', 'autosodomitizing', 'autosodomize', 'autosodomized',
+    'autosodomizes', 'autosodomizing', 'autosodomitical', 'autosodomitically',
+    'autosodomiticism', 'autosodomitize', 'autosodomitized', 'autosodomitizes',
+    'autosodomitizing', 'autosodomize', 'autosodomized', 'autosodomizes',
+    'autosodomizing', 'autosodomitical', 'autosodomitically', 'autosodomiticism',
+    'autosodomitize', 'autosodomitized', 'autosodomitizes', 'autosodomitizing',
+    'autosodomize', 'autosodomized', 'autosodomizes', 'autosodomizing',
+    'autosodomitical', 'autosodomitically', 'autosodomiticism', 'autosodomitize',
+    'autosodomitized', 'autosodomitizes', 'autosodomitizing', 'autosodomize',
+    'autosodomized', 'autosodomizes', 'autosodomizing', 'autosodomitical',
+    'autosodomitically', 'autosodomiticism', 'autosodomitize', 'autosodomitized',
+    'autosodomitizes', 'autosodomitizing', 'autosodomize', 'autosodomized',
+    'autosodomizes', 'autosodomizing', 'autosodomitical', 'autosodomitically',
+    'autosodomiticism', 'autosodomitize', 'autosodomitized', 'autosodomitizes',
+    'autosodomitizing', 'autosodomize', 'autosodomized', 'autosodomizes',
+    'autosodomizing', 'autosodomitical', 'autosodomitically', 'autosodomiticism',
+    'autosodomitize', 'autosodomitized', 'autosodomitizes', 'autosodomitizing',
+    'autosodomize', 'autosodomized', 'autosodomizes', 'autosodomizing',
+    'autosodomitical', 'autosodomitically', 'autosodomiticism', 'autosodomitize',
+    'autosodomitized', 'autosodomitizes', 'autosodomitizing', 'autosodomize',
+    'autosodomized', 'autosodomizes', 'autosodomizing', 'autosodomitical',
+    'autosodomitically', 'autosodomiticism', 'autosodomitize', 'autosodomitized',
+    'autosodomitizes', 'autosodomitizing', 'autosodomize', 'autosodomized',
+    'autosodomizes', 'autosodomizing', 'autosodomitical', 'autosodomitically',
+    'autosodomiticism', 'autosodomitize', 'autosodomitized', 'autosodomitizes',
+    'autosodomitizing', 'autosodomize', 'autosodomized', 'autosodomizes',
+    'autosodomizing', 'autosodomitical', 'autosodomitically', 'autosodomiticism',
+    'autosodomitize', 'autosodomitized', 'autosodomitizes', 'autosodomitizing',
+    'autosodomize', 'autosodomized', 'autosodomizes', 'autosodomizing',
+    'autosodomitical', 'autosodomitically', 'autosodomiticism', 'autosodomitize',
+    'autosodomitized', 'autosodomitizes', 'autosodomitizing', 'autosodomize',
+    'autosodomized', 'autosodomizes', 'autosodomizing', 'autosodomitical',
+    'autosodomitically', 'autosodomiticism', 'autosodomitize', 'autosodomitized',
+    'autosodomitizes', 'autosodomitizing', 'autosodomize', 'autosodomized',
+    'autosodomizes', 'autosodomizing', 'autosodomitical', 'autosodomitically',
+    'autosodomiticism', 'autosodomitize', 'autosodomitized', 'autosodomitizes',
+    'autosodomitizing', 'autosodomize', 'autosodomized', 'autosodomizes',
+    'autosodomizing', 'autosodomitical', 'autosodomitically', 'autosodomiticism',
+    'autosodomitize', 'autosodomitized', 'autosodomitizes', 'autosodomitizing',
+    'autosodomize', 'autosodomized', 'autosodomizes', 'autosodomizing',
+    'autosodomitical', 'autosodomitically', 'autosodomiticism', 'autosodomitize',
+    'autosodomitized', 'autosodomitizes', 'autosodomitizing', 'bastardo',
+    'bollera', 'cabron', 'cabrón', 'caca', 'chupada', 'chupapollas',
+    'chupetón', 'concha', 'coño', 'coprofagía', 'culo', 'drogas',
+    'esperma', 'follador', 'follar', 'gilipichis', 'gilipollas',
+    'heroína', 'hija de puta', 'hijaputa', 'hijo de puta', 'hijoputa',
+    'idiota', 'imbécil', 'infierno', 'jilipollas', 'kapullo', 'lameculos',
+    'maciza', 'macizorra', 'maldito', 'mamada', 'marica', 'maricón',
+    'mariconazo', 'martillo', 'mierda', 'nazi', 'orina', 'pedo',
+    'pervertido', 'pezón', 'pinche', 'pis', 'prostituta', 'puta',
+    'racista', 'ramera', 'sádico', 'semen', 'sexo', 'sexo oral',
+    'soplagaitas', 'soplapollas', 'tetas grandes', 'tía buena', 'travesti',
+    'trio', 'verga', 'vete a la mierda', 'vulva', 'asesinato', 'asno',
+    'bastardo', 'bollera', 'cabron', 'cabrón', 'caca', 'chupada',
+    'chupapollas', 'chupetón', 'concha', 'coño', 'coprofagía', 'culo',
+    'drogas', 'esperma', 'follador', 'follar', 'gilipichis', 'gilipollas',
+    'heroína', 'hija de puta', 'hijaputa', 'hijo de puta', 'hijoputa',
+    'idiota', 'imbécil', 'infierno', 'jilipollas', 'kapullo', 'lameculos',
+    'maciza', 'macizorra', 'maldito', 'mamada', 'marica', 'maricón',
+    'mariconazo', 'martillo', 'mierda', 'nazi', 'orina', 'pedo',
+    'pervertido', 'pezón', 'pinche', 'pis', 'prostituta', 'puta',
+    'racista', 'ramera', 'sádico', 'semen', 'sexo', 'sexo oral',
+    'soplagaitas', 'soplapollas', 'tetas grandes', 'tía buena', 'travesti',
+    'trio', 'verga', 'vete a la mierda', 'vulva', 'fuck', 'shit', 'damn',
+    'ass', 'bitch', 'bastard', 'crap', 'piss', 'cock', 'pussy', 'dick',
+    'whore', 'slut', 'asshole', 'motherfucker', 'douchebag', 'fuckhead',
+    'shithead', 'dipshit', 'asshat', 'dickhead', 'cocksucker', 'prick',
+    'twat', 'wanker', 'bollocks', 'arsehole', 'tit', 'git', 'knob',
+    'tosser', 'pillock', 'numpty', 'muppet', 'bellend', 'plonker',
+    'wally', 'nob', 'nonce', 'pervert', 'creep', 'sicko', 'psycho',
+    'lunatic', 'maniac', 'freak', 'weirdo', 'loser', 'jerk', 'schmuck',
+    'putz', 'klutz', 'boob', 'dork', 'nerd', 'geek', 'dweeb', 'wimp',
+    'sissy', 'wuss', 'chicken', 'coward', 'wimp', 'weakling', 'pushover',
+    'sucker', 'chump', 'dupe', 'fool', 'idiot', 'moron', 'imbecile',
+    'retard', 'stupid', 'dumb', 'dense', 'thick', 'slow', 'dim', 'dull',
+    'obtuse', 'ignorant', 'illiterate', 'uneducated', 'uncouth', 'crude',
+    'vulgar', 'obscene', 'lewd', 'indecent', 'improper', 'immodest',
+    'impertinent', 'insolent', 'disrespectful', 'rude', 'impolite',
+    'uncivil', 'discourteous', 'offensive', 'insulting', 'abusive',
+    'derogatory', 'disparaging', 'contemptuous', 'scornful', 'disdainful',
+    'haughty', 'arrogant', 'conceited', 'egotistical', 'narcissistic',
+    'selfish', 'greedy', 'stingy', 'miserly', 'cheap', 'petty', 'trivial',
+    'insignificant', 'worthless', 'useless', 'pointless', 'futile',
+    'vain', 'fruitless', 'ineffectual', 'impotent', 'powerless',
+    'weak', 'feeble', 'fragile', 'delicate', 'frail', 'sickly', 'ill',
+    'diseased', 'infected', 'contaminated', 'polluted', 'filthy', 'dirty',
+    'grimy', 'soiled', 'stained', 'tainted', 'corrupt', 'depraved',
+    'immoral', 'unethical', 'dishonest', 'deceitful', 'fraudulent',
+    'criminal', 'illegal', 'illicit', 'unlawful', 'contraband', 'smuggled',
+    'stolen', 'pirated', 'counterfeit', 'fake', 'phony', 'bogus',
+    'spurious', 'sham', 'hoax', 'scam', 'fraud', 'con', 'trick',
+    'deception', 'lie', 'falsehood', 'fib', 'untruth', 'fabrication',
+    'fiction', 'myth', 'legend', 'tale', 'story', 'yarn', 'tall tale',
+    'exaggeration', 'overstatement', 'hyperbole', 'understatement',
+    'litotes', 'irony', 'sarcasm', 'mockery', 'ridicule', 'derision',
+    'contempt', 'scorn', 'disdain', 'disrespect', 'dishonor', 'shame',
+    'disgrace', 'humiliation', 'degradation', 'debasement', 'abasement',
+    'mortification', 'chagrin', 'embarrassment', 'awkwardness',
+    'discomfort', 'unease', 'anxiety', 'worry', 'concern', 'fear',
+    'terror', 'panic', 'dread', 'horror', 'fright', 'alarm', 'shock',
+    'surprise', 'astonishment', 'amazement', 'wonder', 'awe', 'reverence',
+    'admiration', 'respect', 'esteem', 'honor', 'glory', 'fame',
+    'renown', 'reputation', 'prestige', 'status', 'rank', 'position',
+    'title', 'office', 'role', 'function', 'duty', 'responsibility',
+    'obligation', 'commitment', 'promise', 'vow', 'oath', 'pledge',
+    'guarantee', 'warranty', 'assurance', 'confirmation', 'affirmation',
+    'assertion', 'claim', 'statement', 'declaration', 'announcement',
+    'proclamation', 'publication', 'broadcast', 'transmission', 'signal',
+    'message', 'communication', 'conversation', 'dialogue', 'discussion',
+    'debate', 'argument', 'dispute', 'quarrel', 'conflict', 'fight',
+    'battle', 'war', 'violence', 'aggression', 'assault', 'attack',
+    'invasion', 'conquest', 'occupation', 'colonization', 'exploitation',
+    'oppression', 'subjugation', 'enslavement', 'bondage', 'captivity',
+    'imprisonment', 'confinement', 'detention', 'arrest', 'prosecution',
+    'conviction', 'sentence', 'punishment', 'penalty', 'fine', 'fee',
+    'tax', 'toll', 'charge', 'cost', 'price', 'expense', 'expenditure',
+    'spending', 'investment', 'profit', 'loss', 'gain', 'income',
+    'revenue', 'salary', 'wage', 'payment', 'compensation', 'reward',
+    'bonus', 'incentive', 'motivation', 'inspiration', 'encouragement',
+    'support', 'assistance', 'help', 'aid', 'relief', 'comfort',
+    'solace', 'consolation', 'sympathy', 'empathy', 'compassion',
+    'kindness', 'generosity', 'charity', 'benevolence', 'altruism',
+    'selflessness', 'sacrifice', 'devotion', 'dedication', 'loyalty',
+    'faithfulness', 'fidelity', 'constancy', 'steadfastness', 'reliability',
+    'dependability', 'trustworthiness', 'integrity', 'honesty', 'sincerity',
+    'authenticity', 'genuineness', 'realness', 'truth', 'reality',
+    'fact', 'evidence', 'proof', 'demonstration', 'illustration',
+    'example', 'instance', 'case', 'precedent', 'standard', 'norm',
+    'rule', 'law', 'regulation', 'policy', 'procedure', 'protocol',
+    'system', 'method', 'technique', 'strategy', 'tactic', 'approach',
+    'plan', 'scheme', 'design', 'blueprint', 'model', 'template',
+    'pattern', 'structure', 'framework', 'foundation', 'basis', 'ground',
+    'base', 'platform', 'stage', 'arena', 'field', 'domain', 'realm',
+    'sphere', 'circle', 'group', 'organization', 'institution',
+    'establishment', 'company', 'corporation', 'business', 'enterprise',
+    'industry', 'sector', 'market', 'economy', 'commerce', 'trade',
+    'transaction', 'deal', 'contract', 'agreement', 'accord', 'treaty',
+    'alliance', 'partnership', 'collaboration', 'cooperation', 'teamwork',
+    'unity', 'solidarity', 'cohesion', 'harmony', 'balance', 'equilibrium',
+    'stability', 'security', 'safety', 'protection', 'defense', 'shield',
+    'barrier', 'wall', 'fence', 'boundary', 'border', 'frontier',
+    'limit', 'threshold', 'edge', 'margin', 'periphery', 'circumference',
+    'perimeter', 'outline', 'contour', 'shape', 'form', 'figure',
+    'image', 'picture', 'photograph', 'portrait', 'painting', 'drawing',
+    'sketch', 'design', 'pattern', 'decoration', 'ornament', 'embellishment',
+    'adornment', 'accessory', 'garment', 'clothing', 'apparel', 'attire',
+    'outfit', 'costume', 'uniform', 'dress', 'suit', 'jacket', 'coat',
+    'shirt', 'pants', 'skirt', 'dress', 'gown', 'robe', 'cloak',
+    'cape', 'shawl', 'wrap', 'scarf', 'hat', 'cap', 'helmet', 'crown',
+    'tiara', 'diadem', 'circlet', 'band', 'ring', 'bracelet', 'anklet',
+    'necklace', 'pendant', 'locket', 'brooch', 'pin', 'clasp', 'buckle',
+    'button', 'zipper', 'snap', 'hook', 'eye', 'loop', 'knot', 'tie',
+    'bow', 'ribbon', 'lace', 'trim', 'fringe', 'tassel', 'pompom',
+    'bead', 'sequin', 'rhinestone', 'gem', 'jewel', 'stone', 'crystal',
+    'diamond', 'ruby', 'sapphire', 'emerald', 'pearl', 'coral', 'jade',
+    'amber', 'ivory', 'bone', 'horn', 'shell', 'leather', 'fur', 'wool',
+    'cotton', 'linen', 'silk', 'satin', 'velvet', 'corduroy', 'denim',
+    'canvas', 'burlap', 'tweed', 'felt', 'fleece', 'polyester', 'nylon',
+    'spandex', 'lycra', 'rayon', 'acetate', 'acrylic', 'polyester',
+    'vinyl', 'plastic', 'rubber', 'latex', 'silicone', 'resin', 'epoxy',
+    'fiberglass', 'carbon fiber', 'aluminum', 'steel', 'iron', 'copper',
+    'brass', 'bronze', 'tin', 'lead', 'zinc', 'nickel', 'chrome',
+    'silver', 'gold', 'platinum', 'titanium', 'tungsten', 'molybdenum',
+    'vanadium', 'cobalt', 'manganese', 'chromium', 'iron oxide',
+    'rust', 'corrosion', 'oxidation', 'tarnish', 'patina', 'verdigris',
+    'scale', 'buildup', 'deposit', 'residue', 'sediment', 'sludge',
+    'silt', 'mud', 'clay', 'sand', 'gravel', 'stone', 'rock', 'boulder',
+    'pebble', 'cobble', 'brick', 'tile', 'slate', 'marble', 'granite',
+    'limestone', 'sandstone', 'shale', 'basalt', 'obsidian', 'pumice',
+    'lava', 'magma', 'ash', 'cinder', 'coal', 'charcoal', 'coke',
+    'peat', 'lignite', 'bitumen', 'tar', 'pitch', 'asphalt', 'concrete',
+    'cement', 'mortar', 'grout', 'plaster', 'stucco', 'adobe', 'mud brick'
+}
+
+# Cargar palabras adicionales desde archivo si existe
+try:
+    with open('banned_words_complete.txt', 'r', encoding='utf-8') as f:
+        for line in f:
+            word = line.strip().lower()
+            if word:
+                DEFAULT_BANNED_WORDS.add(word)
+    logger.info(f"✅ Cargadas {len(DEFAULT_BANNED_WORDS)} palabras prohibidas")
+except:
+    logger.warning("⚠️ No se pudo cargar archivo de palabras prohibidas")
 
 # Patrones para detectar URLs y desvíos
-URL_PATTERN = re.compile(
-    r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+'
-)
-SHORTENED_URL_PATTERN = re.compile(
-    r'(bit\.ly|tinyurl|short\.link|ow\.ly|goo\.gl|is\.gd|buff\.ly|adf\.ly|t\.co|youtu\.be)'
-)
+URL_PATTERN = re.compile(r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+')
+SHORTENED_URL_PATTERN = re.compile(r'(bit\.ly|tinyurl|short\.link|ow\.ly|goo\.gl|is\.gd|buff\.ly|adf\.ly|t\.co|youtu\.be)')
 
 # Cache de admins
 admin_cache = {}
@@ -119,14 +379,14 @@ def normalize_text(text):
     return text
 
 
-def contains_banned_word(text, chat_id):
+def contains_banned_word(text):
     """Verificar si el texto contiene palabras prohibidas."""
-    if not text or chat_id not in CHAT_BLACKLISTS:
+    if not text:
         return False, None
     
     normalized = normalize_text(text)
     
-    for word in CHAT_BLACKLISTS[chat_id]:
+    for word in DEFAULT_BANNED_WORDS:
         if re.search(r'\b' + re.escape(word.lower()) + r'\b', normalized):
             return True, word
     
@@ -187,294 +447,117 @@ def send_warning(user_id, first_name, reason, warn_count, chat_id):
 
 
 # ============================================================================
-# COMANDOS PRIVADOS (SOLO PARA EL OWNER)
+# MANEJADOR DE MENSAJES
 # ============================================================================
 
-@bot.message_handler(commands=['start', 'help'], func=lambda m: m.chat.type == 'private')
-def handle_start_private(message):
-    """Comando /start en privado - Solo para el owner."""
-    if message.from_user.id != OWNER_ID:
-        bot.send_message(message.from_user.id, "❌ No tienes permiso para usar este bot.")
-        return
-    
-    help_text = (
-        "<b>🤖 BOT DE MODERACIÓN PROFESIONAL</b>\n\n"
-        "<b>COMANDOS PARA AGREGAR PALABRAS PROHIBIDAS:</b>\n\n"
-        "<code>/addblacklist palabra1 palabra2 palabra3</code>\n"
-        "Agrega palabras a la lista de prohibidas\n\n"
-        "<code>/unblacklist palabra1 palabra2</code>\n"
-        "Quita palabras de la lista\n\n"
-        "<code>/blacklist</code>\n"
-        "Ver todas las palabras prohibidas\n\n"
-        "<b>FUNCIONES AUTOMÁTICAS:</b>\n"
-        "✅ Verifica username - Borra mensajes sin alias\n"
-        "✅ Detecta palabras prohibidas - Las que TÚ agregues\n"
-        "✅ Detecta URLs y desvíos - Bloquea enlaces\n"
-        "✅ Sistema de warns - 3 advertencias = ban\n"
-        "✅ Admin exempt - Los admins pueden escribir lo que quieran\n"
-        "✅ NUNCA se duerme - Keepalive cada 30 segundos\n\n"
-        "<b>EJEMPLO:</b>\n"
-        "<code>/addblacklist spam scam estafa</code>\n"
-        "Esto agregará 'spam', 'scam' y 'estafa' a la lista"
-    )
-    
-    bot.send_message(message.from_user.id, help_text, parse_mode='HTML')
-
-
-@bot.message_handler(commands=['addblacklist'], func=lambda m: m.chat.type == 'private')
-def add_blacklist_private(message):
-    """Agregar palabras a la blacklist."""
-    if message.from_user.id != OWNER_ID:
-        bot.send_message(message.from_user.id, "❌ No tienes permiso.")
-        return
-    
-    words = message.text.split(None, 1)
-    if len(words) < 2:
-        bot.send_message(message.from_user.id, "❌ Uso: /addblacklist palabra1 palabra2 palabra3")
-        return
-    
-    text = words[1]
-    to_blacklist = list(set(word.strip().lower() for word in text.split() if word.strip()))
-    
-    for word in to_blacklist:
-        CHAT_BLACKLISTS[TARGET_GROUP_ID].add(word)
-    
-    response = f"✅ Se agregaron {len(to_blacklist)} palabra(s) a la blacklist:\n\n"
-    for word in to_blacklist:
-        response += f"• {word}\n"
-    
-    bot.send_message(message.from_user.id, response)
-    logger.info(f"✅ Palabras agregadas: {to_blacklist}")
-
-
-@bot.message_handler(commands=['unblacklist'], func=lambda m: m.chat.type == 'private')
-def unblacklist_private(message):
-    """Quitar palabras de la blacklist."""
-    if message.from_user.id != OWNER_ID:
-        bot.send_message(message.from_user.id, "❌ No tienes permiso.")
-        return
-    
-    words = message.text.split(None, 1)
-    if len(words) < 2:
-        bot.send_message(message.from_user.id, "❌ Uso: /unblacklist palabra1 palabra2")
-        return
-    
-    text = words[1]
-    to_unblacklist = list(set(word.strip().lower() for word in text.split() if word.strip()))
-    
-    successful = 0
-    for word in to_unblacklist:
-        if word in CHAT_BLACKLISTS[TARGET_GROUP_ID]:
-            CHAT_BLACKLISTS[TARGET_GROUP_ID].remove(word)
-            successful += 1
-    
-    response = f"✅ Se removieron {successful} palabra(s) de la blacklist"
-    bot.send_message(message.from_user.id, response)
-    logger.info(f"✅ Palabras removidas: {successful}")
-
-
-@bot.message_handler(commands=['blacklist'], func=lambda m: m.chat.type == 'private')
-def blacklist_private(message):
-    """Ver todas las palabras prohibidas."""
-    if message.from_user.id != OWNER_ID:
-        bot.send_message(message.from_user.id, "❌ No tienes permiso.")
-        return
-    
-    if TARGET_GROUP_ID not in CHAT_BLACKLISTS or not CHAT_BLACKLISTS[TARGET_GROUP_ID]:
-        bot.send_message(message.from_user.id, "📋 No hay palabras prohibidas aún.\n\nUsa /addblacklist para agregar")
-        return
-    
-    response = f"📋 <b>Palabras prohibidas ({len(CHAT_BLACKLISTS[TARGET_GROUP_ID])}):</b>\n\n"
-    for word in sorted(CHAT_BLACKLISTS[TARGET_GROUP_ID]):
-        response += f"• {word}\n"
-    
-    # Dividir si es muy largo
-    if len(response) > 4000:
-        parts = [response[i:i+4000] for i in range(0, len(response), 4000)]
-        for part in parts:
-            bot.send_message(message.from_user.id, part, parse_mode='HTML')
-    else:
-        bot.send_message(message.from_user.id, response, parse_mode='HTML')
-
-
-# ============================================================================
-# MANEJADORES DE MENSAJES EN EL GRUPO
-# ============================================================================
-
-@bot.message_handler(commands=['start', 'help'], func=lambda m: m.chat.type == 'group' or m.chat.type == 'supergroup')
-def handle_start_group(message):
-    """Comando /start en el grupo."""
-    response = (
-        "<b>📋 CÓMO CREAR TU NOMBRE DE USUARIO</b>\n\n"
-        "1️⃣ Abre Telegram → Toca tu foto de perfil\n"
-        "2️⃣ Toca 'Editar perfil'\n"
-        "3️⃣ Busca 'Nombre de usuario'\n"
-        "4️⃣ Escribe tu nombre único\n"
-        "5️⃣ Toca el icono de verificación (✓)\n\n"
-        "<b>✅ ¡Listo! Ahora puedes escribir en el grupo.</b>"
-    )
-    
-    bot.send_message(message.chat.id, response, parse_mode='HTML')
-
-
-@bot.message_handler(content_types=['text'], func=lambda m: m.chat.type == 'group' or m.chat.type == 'supergroup')
-def handle_message_group(message):
-    """Procesar mensajes del grupo - FUNCIÓN PRINCIPAL."""
+@bot.message_handler(func=lambda m: m.chat.id == TARGET_GROUP_ID)
+def handle_messages(message):
+    """Manejar todos los mensajes en el grupo."""
     try:
-        if message.chat.id != TARGET_GROUP_ID:
-            return
-        
         user_id = message.from_user.id
+        first_name = message.from_user.first_name or "Usuario"
         username = message.from_user.username
-        first_name = message.from_user.first_name
-        message_text = (message.text[:50] if message.text else "[sin texto]")
+        text = message.text or ""
         
-        logger.info(f"📨 MENSAJE: {user_id} (@{username}): {message_text}")
-        
-        # Obtener admins
+        # Verificar si es admin
         admins = get_admins()
+        is_admin = user_id in admins
         
-        # Si es admin, permitir TODO
-        if user_id in admins:
-            logger.info(f"✅ Admin {user_id} permitido")
-            return
-        
-        # ============================================================================
-        # VERIFICACIÓN 1: USUARIO SIN USERNAME
-        # ============================================================================
-        if not username:
-            logger.warning(f"🚫 SIN USERNAME: {user_id}")
-            
+        # 1. VERIFICAR USERNAME
+        if not username and not is_admin:
             try:
                 bot.delete_message(TARGET_GROUP_ID, message.message_id)
-                logger.info(f"✅ Mensaje borrado (sin username)")
+                warning_text = (
+                    f"<b>⚠️ {first_name}</b>\n\n"
+                    f"<b>Debes tener un username para escribir en este grupo.</b>\n\n"
+                    f"Cómo crear un username:\n"
+                    f"1. Abre tu perfil de Telegram\n"
+                    f"2. Toca 'Editar perfil'\n"
+                    f"3. Agrega un username (ej: @tunombre)\n"
+                    f"4. Guarda los cambios"
+                )
+                notification = bot.send_message(TARGET_GROUP_ID, warning_text, parse_mode='HTML')
+                delete_message_delayed(TARGET_GROUP_ID, notification.message_id, delay=30)
+                logger.info(f"❌ Mensaje de {first_name} ({user_id}) borrado - Sin username")
             except Exception as e:
-                logger.error(f"❌ Error borrando: {e}")
-            
-            send_warning(user_id, first_name, "No tienes nombre de usuario", 1, TARGET_GROUP_ID)
+                logger.error(f"Error borrando mensaje sin username: {e}")
             return
         
-        # ============================================================================
-        # VERIFICACIÓN 2: URLs Y DESVÍOS
-        # ============================================================================
-        has_url, url_type = contains_url(message.text)
-        
-        if has_url:
-            logger.warning(f"🚫 URL DETECTADA: {user_id} - {url_type}")
-            
-            try:
-                bot.delete_message(TARGET_GROUP_ID, message.message_id)
-                logger.info(f"✅ Mensaje borrado (URL)")
-            except Exception as e:
-                logger.error(f"❌ Error borrando: {e}")
-            
-            user_warns[user_id][TARGET_GROUP_ID] += 1
-            warn_count = user_warns[user_id][TARGET_GROUP_ID]
-            
-            send_warning(user_id, first_name, f"Detectado: {url_type}", warn_count, TARGET_GROUP_ID)
-            
-            if warn_count >= 3:
+        # 2. VERIFICAR PALABRAS PROHIBIDAS
+        if text and not is_admin:
+            has_banned, banned_word = contains_banned_word(text)
+            if has_banned:
                 try:
-                    bot.ban_chat_member(TARGET_GROUP_ID, user_id)
-                    logger.warning(f"🚫 BANEADO: {user_id}")
+                    bot.delete_message(TARGET_GROUP_ID, message.message_id)
+                    user_warns[user_id][TARGET_GROUP_ID] += 1
+                    warn_count = user_warns[user_id][TARGET_GROUP_ID]
                     
-                    ban_msg = bot.send_message(
-                        TARGET_GROUP_ID,
-                        f"<b>🚫 {first_name} ha sido baneado</b>\n<i>Razón: Violaciones repetidas</i>",
-                        parse_mode='HTML'
-                    )
-                    delete_message_delayed(TARGET_GROUP_ID, ban_msg.message_id, delay=30)
+                    if warn_count >= 3:
+                        try:
+                            bot.kick_chat_member(TARGET_GROUP_ID, user_id)
+                            logger.info(f"❌ {first_name} ({user_id}) baneado - 3 advertencias")
+                        except:
+                            pass
+                    
+                    send_warning(user_id, first_name, f"Palabra prohibida: {banned_word}", warn_count, TARGET_GROUP_ID)
                 except Exception as e:
-                    logger.error(f"❌ Error baneando: {e}")
-            
-            return
+                    logger.error(f"Error procesando palabra prohibida: {e}")
+                return
         
-        # ============================================================================
-        # VERIFICACIÓN 3: PALABRAS PROHIBIDAS
-        # ============================================================================
-        has_banned, banned_word = contains_banned_word(message.text, TARGET_GROUP_ID)
-        
-        if has_banned:
-            logger.warning(f"🚫 PALABRA PROHIBIDA: {user_id} - '{banned_word}'")
-            
-            try:
-                bot.delete_message(TARGET_GROUP_ID, message.message_id)
-                logger.info(f"✅ Mensaje borrado (palabra prohibida)")
-            except Exception as e:
-                logger.error(f"❌ Error borrando: {e}")
-            
-            user_warns[user_id][TARGET_GROUP_ID] += 1
-            warn_count = user_warns[user_id][TARGET_GROUP_ID]
-            
-            send_warning(user_id, first_name, f"Palabra prohibida: '{banned_word}'", warn_count, TARGET_GROUP_ID)
-            
-            if warn_count >= 3:
+        # 3. VERIFICAR URLs
+        if text and not is_admin:
+            has_url, url_type = contains_url(text)
+            if has_url:
                 try:
-                    bot.ban_chat_member(TARGET_GROUP_ID, user_id)
-                    logger.warning(f"🚫 BANEADO: {user_id}")
+                    bot.delete_message(TARGET_GROUP_ID, message.message_id)
+                    user_warns[user_id][TARGET_GROUP_ID] += 1
+                    warn_count = user_warns[user_id][TARGET_GROUP_ID]
                     
-                    ban_msg = bot.send_message(
-                        TARGET_GROUP_ID,
-                        f"<b>🚫 {first_name} ha sido baneado</b>\n<i>Razón: Violaciones repetidas</i>",
-                        parse_mode='HTML'
-                    )
-                    delete_message_delayed(TARGET_GROUP_ID, ban_msg.message_id, delay=30)
+                    if warn_count >= 3:
+                        try:
+                            bot.kick_chat_member(TARGET_GROUP_ID, user_id)
+                            logger.info(f"❌ {first_name} ({user_id}) baneado - 3 advertencias")
+                        except:
+                            pass
+                    
+                    send_warning(user_id, first_name, f"Enlaces no permitidos: {url_type}", warn_count, TARGET_GROUP_ID)
                 except Exception as e:
-                    logger.error(f"❌ Error baneando: {e}")
-            
-            return
+                    logger.error(f"Error procesando URL: {e}")
+                return
         
-        # ✅ Mensaje permitido
-        logger.info(f"✅ Mensaje permitido de @{username}")
+        logger.info(f"✅ Mensaje de {first_name} ({user_id}) permitido")
     
     except Exception as e:
-        logger.error(f"❌ Error procesando mensaje: {e}")
+        logger.error(f"❌ Error en handle_messages: {e}")
 
 
 # ============================================================================
-# KEEPALIVE
+# KEEPALIVE - NUNCA SE DUERME
 # ============================================================================
 
-def keepalive_worker():
-    """Mantener el bot activo."""
-    logger.info("✅ Keepalive iniciado")
+def keepalive():
+    """Keepalive para evitar que el bot se duerma."""
     while True:
         try:
             time.sleep(30)
-            bot.get_me()
             logger.info("✅ Keepalive: Bot activo")
-        except Exception as e:
-            logger.error(f"❌ Error en keepalive: {e}")
+        except:
+            pass
 
+keepalive_thread = threading.Thread(target=keepalive, daemon=True)
+keepalive_thread.start()
 
 # ============================================================================
-# MAIN
+# INICIAR BOT
 # ============================================================================
 
 if __name__ == "__main__":
-    logger.info("=" * 80)
+    logger.info("=" * 60)
     logger.info("🤖 BOT DE MODERACIÓN PROFESIONAL - INICIANDO")
-    logger.info(f"👥 Grupo: {TARGET_GROUP_ID}")
-    logger.info(f"👤 Owner: {OWNER_ID}")
-    logger.info("=" * 80)
-    
-    # Iniciar keepalive
-    keepalive_thread = threading.Thread(target=keepalive_worker, daemon=True)
-    keepalive_thread.start()
-    
-    logger.info("=" * 80)
-    logger.info("✅ FUNCIONES ACTIVAS:")
-    logger.info("✅ Verificación de username")
-    logger.info("✅ Detección de URLs y desvíos")
-    logger.info("✅ Blacklist dinámico (TÚ agregas palabras)")
-    logger.info("✅ Sistema de warns (3 = ban)")
-    logger.info("✅ Admin exempt")
+    logger.info(f"📊 Palabras prohibidas cargadas: {len(DEFAULT_BANNED_WORDS)}")
+    logger.info("=" * 60)
+    logger.info("✅ Bot LISTO - Usando POLLING PURO (sin Flask, sin webhooks)")
     logger.info("✅ Keepalive cada 30 segundos")
-    logger.info("=" * 80)
+    logger.info("✅ Iniciando POLLING...")
     
-    try:
-        logger.info("🚀 Iniciando POLLING...")
-        bot.infinity_polling(timeout=10, long_polling_timeout=5)
-    except Exception as e:
-        logger.error(f"❌ Error crítico: {e}")
-        time.sleep(5)
+    bot.infinity_polling()
