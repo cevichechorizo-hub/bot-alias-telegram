@@ -190,3 +190,4 @@ if __name__ == "__main__":
     except Exception as e:
         logger.error(f"❌ Error fatal: {e}")
         raise
+# Redeploy force - Mon Mar  2 02:46:59 EST 2026
