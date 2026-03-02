@@ -3,22 +3,22 @@
 
 import logging
 import asyncio
-import sys
-import signal
+import os
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, MessageHandler, filters, ContextTypes, CommandHandler
 
-# Configurar logging para ver todo
+# Configurar logging
 logging.basicConfig(
     level=logging.INFO,
-    stream=sys.stdout,
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
 
 # Configuración
-BOT_TOKEN = "8687327095:AAGn0C3_hJJJrf6oqcXf5kNZzuQ_X-D5pjA"
-TARGET_GROUP_ID = -1003534894759
+BOT_TOKEN = os.getenv("BOT_TOKEN", "8687327095:AAGn0C3_hJJJrf6oqcXf5kNZzuQ_X-D5pjA")
+TARGET_GROUP_ID = int(os.getenv("TARGET_GROUP_ID", "-1003534894759"))
+WEBHOOK_URL = os.getenv("WEBHOOK_URL", "")
+PORT = int(os.getenv("PORT", "8000"))
 
 # Cache de admins
 admin_cache = {}
@@ -143,11 +143,13 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"❌ Error en /start: {e}")
 
 async def main():
-    """Función principal - NUNCA se duerme."""
+    """Función principal - WEBHOOK para Railway."""
     logger.info("=" * 80)
     logger.info("🤖 INICIANDO BOT DE TELEGRAM - VERIFICADOR DE USERNAME")
     logger.info(f"   Token: {BOT_TOKEN[:30]}...")
     logger.info(f"   Grupo: {TARGET_GROUP_ID}")
+    logger.info(f"   Webhook URL: {WEBHOOK_URL}")
+    logger.info(f"   Puerto: {PORT}")
     logger.info("=" * 80)
     
     # Crear aplicación
@@ -168,33 +170,53 @@ async def main():
     await app.start()
     logger.info("✅ Bot iniciado")
     
-    # Polling - NUNCA se duerme
-    logger.info("📡 Iniciando polling continuo...")
-    logger.info("⚠️ IMPORTANTE: El bot está en modo SIEMPRE ACTIVO")
+    # Configurar WEBHOOK para Railway
+    logger.info("📡 Configurando WEBHOOK...")
     
-    try:
+    if WEBHOOK_URL:
+        # Usar WEBHOOK (recomendado para Railway)
+        try:
+            await app.bot.set_webhook(url=WEBHOOK_URL + BOT_TOKEN)
+            logger.info(f"✅ Webhook configurado: {WEBHOOK_URL + BOT_TOKEN}")
+            
+            # Iniciar servidor web para recibir webhooks
+            await app.updater.start_webhook(
+                listen="0.0.0.0",
+                port=PORT,
+                url_path=BOT_TOKEN,
+                webhook_url=WEBHOOK_URL + BOT_TOKEN
+            )
+            logger.info(f"✅ Servidor webhook escuchando en puerto {PORT}")
+            logger.info("✅ Bot LISTO para recibir mensajes vía WEBHOOK")
+            
+            # Mantener corriendo
+            await asyncio.Event().wait()
+        
+        except Exception as e:
+            logger.error(f"❌ Error configurando webhook: {e}")
+            logger.info("📡 Fallback a POLLING...")
+            
+            # Fallback a polling si webhook falla
+            await app.updater.start_polling(
+                allowed_updates=["message", "edited_message"],
+                drop_pending_updates=False
+            )
+            logger.info("✅ Polling activo (modo fallback)")
+            await asyncio.Event().wait()
+    else:
+        # Usar POLLING si no hay WEBHOOK_URL
+        logger.info("⚠️ WEBHOOK_URL no configurada, usando POLLING...")
         await app.updater.start_polling(
             allowed_updates=["message", "edited_message"],
             drop_pending_updates=False
         )
         logger.info("✅ Polling activo - Bot LISTO para recibir mensajes")
-        logger.info("✅ El bot NO se dormirá")
-        
-        # Mantener corriendo indefinidamente
         await asyncio.Event().wait()
-    
-    except KeyboardInterrupt:
-        logger.info("⛔ Bot detenido por el usuario")
-    except Exception as e:
-        logger.error(f"❌ Error fatal: {e}")
-        raise
 
 if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
         logger.info("⛔ Bot detenido")
-        sys.exit(0)
     except Exception as e:
         logger.error(f"❌ Error: {e}")
-        sys.exit(1)
