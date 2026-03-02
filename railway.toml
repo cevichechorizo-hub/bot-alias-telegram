@@ -1,7 +1,0 @@
-[build]
-builder = "dockerfile"
-
-[deploy]
-startCommand = "python3 bot.py"
-restartPolicyMaxRetries = 3
-restartPolicyWindowSeconds = 60
