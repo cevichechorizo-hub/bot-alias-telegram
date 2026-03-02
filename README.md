@@ -42,3 +42,4 @@ El bot genera logs detallados con:
 - 📨 Acciones tomadas
 
 Revisa los logs en Railway para debugging.
+# Rebuild trigger - Mon Mar  2 03:10:45 EST 2026
