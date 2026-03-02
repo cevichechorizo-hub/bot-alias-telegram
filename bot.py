@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-BOT FINAL V2 - NO DEPENDE DE .ENV
-Usa variables de entorno de Railway directamente.
-Si no existen, usa valores por defecto.
+BOT MODERADOR V3 - MEJORADO
+Mensajes profesionales, instrucciones claras, 24/7 sin intervención.
 """
 
 import os
@@ -12,10 +11,12 @@ import re
 import unicodedata
 import signal
 import sys
+import threading
+import time
 from collections import defaultdict
 from telebot import TeleBot
 
-# CONFIGURACIÓN - DIRECTA DE VARIABLES DE ENTORNO
+# CONFIGURACIÓN
 BOT_TOKEN = os.getenv("BOT_TOKEN") or "8491596754:AAHBnLtSRI9Ii3uL6y-rcmLXxfU_7_7bips"
 TARGET_GROUP_ID = int(os.getenv("TARGET_GROUP_ID") or "-1003534894759")
 
@@ -26,11 +27,11 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-logger.info("=" * 60)
-logger.info("🤖 BOT INICIANDO")
+logger.info("=" * 70)
+logger.info("🤖 BOT MODERADOR V3 - INICIANDO")
 logger.info(f"TOKEN: {BOT_TOKEN[:30]}...")
 logger.info(f"GRUPO: {TARGET_GROUP_ID}")
-logger.info("=" * 60)
+logger.info("=" * 70)
 
 # INICIALIZAR BOT
 try:
@@ -83,7 +84,6 @@ admin_cache_time = 0
 def get_admins():
     """Obtiene lista de admins con cache."""
     global admin_cache, admin_cache_time
-    import time
     if time.time() - admin_cache_time > 600:
         try:
             admins = bot.get_chat_administrators(TARGET_GROUP_ID)
@@ -96,6 +96,64 @@ def get_admins():
 
 # WARNS
 user_warns = defaultdict(lambda: defaultdict(int))
+
+# MENSAJES MEJORADOS
+def get_no_alias_message(user_name):
+    """Mensaje profesional para usuarios sin alias."""
+    return f"""
+<b>⚠️ {user_name}, NO TIENES ALIAS</b>
+
+<b>Problema:</b> No puedes escribir en este grupo sin un @username (alias).
+
+<b>¿Cómo poner tu alias?</b>
+
+<b>En Telegram:</b>
+1. Abre tu perfil (toca tu foto de perfil)
+2. Toca "Editar perfil"
+3. Busca "Nombre de usuario"
+4. Escribe tu alias (sin espacios, solo letras y números)
+5. Guarda los cambios
+
+<b>Después de poner tu alias, podrás escribir aquí sin problemas.</b>
+
+<i>Este mensaje se borrará en 30 segundos.</i>
+"""
+
+def get_banned_word_message(user_name, word, warns):
+    """Mensaje profesional para palabra prohibida."""
+    msg = f"""
+<b>⚠️ ADVERTENCIA - {user_name}</b>
+
+<b>Razón:</b> Contenido no permitido en este grupo.
+
+<b>Advertencias:</b> {warns}/3
+"""
+    if warns >= 3:
+        msg += "\n<b>❌ HAS SIDO EXPULSADO DEL GRUPO.</b>\n<i>Contacta a un administrador si crees que fue un error.</i>"
+    else:
+        msg += f"\n<i>Te quedan {3 - warns} advertencia(s) antes de ser expulsado.</i>"
+    
+    msg += "\n\n<i>Este mensaje se borrará en 30 segundos.</i>"
+    return msg
+
+def get_link_message(user_name):
+    """Mensaje profesional para enlaces."""
+    return f"""
+<b>⚠️ {user_name}, ENLACES NO PERMITIDOS</b>
+
+<b>Razón:</b> Los enlaces no están permitidos en este grupo.
+
+<b>Por favor, respeta las normas del grupo.</b>
+
+<i>Este mensaje se borrará en 30 segundos.</i>
+"""
+
+def safe_delete(chat_id, message_id):
+    """Borra un mensaje de forma segura."""
+    try:
+        bot.delete_message(chat_id, message_id)
+    except:
+        pass
 
 # MANEJADOR DE MENSAJES
 @bot.message_handler(func=lambda msg: msg.chat.id == TARGET_GROUP_ID)
@@ -112,11 +170,8 @@ def handle_message(message):
         if not user.username:
             try:
                 bot.delete_message(message.chat.id, message.message_id)
-                notif = bot.send_message(
-                    message.chat.id,
-                    f"⚠️ {user.first_name}, necesitas un @username para escribir aquí."
-                )
-                import threading
+                msg_text = get_no_alias_message(user.first_name or "Usuario")
+                notif = bot.send_message(message.chat.id, msg_text)
                 threading.Timer(30, lambda: safe_delete(notif.chat.id, notif.message_id)).start()
                 logger.info(f"Mensaje de {user.first_name} ({user.id}) borrado: Sin username")
             except Exception as e:
@@ -135,9 +190,9 @@ def handle_message(message):
                 user_warns[user.id][message.chat.id] += 1
                 warns = user_warns[user.id][message.chat.id]
                 
-                msg_text = f"⚠️ {user.first_name}, palabra no permitida.\nAdvertencias: {warns}/3"
+                msg_text = get_banned_word_message(user.first_name or "Usuario", word, warns)
+                
                 if warns >= 3:
-                    msg_text += "\n❌ HAS SIDO EXPULSADO"
                     try:
                         bot.kick_chat_member(message.chat.id, user.id)
                         logger.info(f"Usuario {user.id} expulsado por 3 advertencias")
@@ -145,7 +200,6 @@ def handle_message(message):
                         pass
                 
                 notif = bot.send_message(message.chat.id, msg_text)
-                import threading
                 threading.Timer(30, lambda: safe_delete(notif.chat.id, notif.message_id)).start()
                 logger.info(f"Mensaje de {user.first_name} ({user.id}) borrado: Palabra '{word}'")
             except Exception as e:
@@ -156,8 +210,8 @@ def handle_message(message):
         if re.search(r'http[s]?://|www\.', text):
             try:
                 bot.delete_message(message.chat.id, message.message_id)
-                notif = bot.send_message(message.chat.id, f"⚠️ {user.first_name}, no se permiten enlaces.")
-                import threading
+                msg_text = get_link_message(user.first_name or "Usuario")
+                notif = bot.send_message(message.chat.id, msg_text)
                 threading.Timer(30, lambda: safe_delete(notif.chat.id, notif.message_id)).start()
                 logger.info(f"Mensaje de {user.first_name} ({user.id}) borrado: Contiene enlace")
             except Exception as e:
@@ -166,13 +220,6 @@ def handle_message(message):
     
     except Exception as e:
         logger.error(f"Error procesando mensaje: {e}")
-
-def safe_delete(chat_id, message_id):
-    """Borra un mensaje de forma segura."""
-    try:
-        bot.delete_message(chat_id, message_id)
-    except:
-        pass
 
 # MANEJADOR DE SEÑALES
 def signal_handler(sig, frame):
@@ -184,11 +231,26 @@ def signal_handler(sig, frame):
 signal.signal(signal.SIGINT, signal_handler)
 signal.signal(signal.SIGTERM, signal_handler)
 
+# KEEPALIVE ETERNO
+def keepalive_loop():
+    """Mantiene el bot activo con logs periódicos."""
+    while True:
+        try:
+            time.sleep(30)
+            logger.info("✅ Keepalive: Bot activo y vigilante 24/7")
+        except:
+            pass
+
 # PUNTO DE ENTRADA
 if __name__ == "__main__":
-    logger.info("=" * 60)
-    logger.info("🚀 INICIANDO POLLING INFINITO")
-    logger.info("=" * 60)
+    logger.info("=" * 70)
+    logger.info("🚀 INICIANDO POLLING INFINITO - 24/7 SIN INTERVENCIÓN")
+    logger.info("=" * 70)
+    
+    # Iniciar keepalive en hilo separado
+    keepalive_thread = threading.Thread(target=keepalive_loop, name="KeepaliveThread", daemon=True)
+    keepalive_thread.start()
+    
     try:
         bot.infinity_polling(timeout=60, long_polling_timeout=30)
     except Exception as e:
