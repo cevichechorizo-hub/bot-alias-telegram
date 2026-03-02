@@ -23,7 +23,7 @@ BOT_TOKEN = "8687327095:AAGn0C3_hJJJrf6oqcXf5kNZzuQ_X-D5pjA"
 TARGET_GROUP_ID = -1003534894759
 
 # Cache de admins
-admin_cache = {}
+admin_cache = set()
 admin_cache_time = 0
 
 async def get_admins(context):
