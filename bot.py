@@ -10,6 +10,7 @@ import os
 import time
 import logging
 import telebot
+import threading
 from dotenv import load_dotenv
 
 # Configurar logging
@@ -34,6 +35,18 @@ logger.info("=" * 80)
 # Cache de admins
 admin_cache = {}
 admin_cache_time = 0
+
+# Keepalive para evitar que el bot se duerma
+def keepalive(bot):
+    """Mantener el bot activo cada 5 minutos."""
+    while True:
+        try:
+            time.sleep(300)  # 5 minutos
+            bot.get_me()  # Ping a Telegram
+            logger.info("✅ Keepalive: Bot activo")
+        except Exception as e:
+            logger.error(f"❌ Error en keepalive: {e}")
+            time.sleep(10)
 
 def get_admins(bot):
     """Obtener administradores del grupo."""
@@ -158,11 +171,16 @@ try:
         except Exception as e:
             logger.error(f"❌ Error en handle_message: {e}")
     
+    # Iniciar keepalive en thread separado
+    keepalive_thread = threading.Thread(target=keepalive, args=(bot,), daemon=True)
+    keepalive_thread.start()
+    logger.info("✅ Keepalive iniciado (se ejecuta cada 5 minutos)")
+    
     # POLLING - Simple y confiable para Railway
     logger.info("=" * 80)
     logger.info("📡 Iniciando POLLING...")
     logger.info("✅ Bot LISTO para recibir mensajes")
-    logger.info("✅ El bot NO se dormirá")
+    logger.info("✅ El bot NO se dormirá (Keepalive activo)")
     logger.info("=" * 80)
     
     bot.infinity_polling(timeout=10, long_polling_timeout=5)
