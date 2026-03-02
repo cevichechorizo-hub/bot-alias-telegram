@@ -30,6 +30,8 @@ WEBHOOK_URL = os.getenv('WEBHOOK_URL', 'https://bot-alias-telegram.railway.app')
 WEBHOOK_PORT = int(os.getenv('WEBHOOK_PORT', '5000'))
 
 LOG_FILE = "bot_alias_live.log"
+HISTORY_FILE = "message_history.json"
+MESSAGE_LIMIT = 100  # Limpiar cada 100 mensajes
 
 # ============================================================================
 # LOGGING
@@ -55,6 +57,36 @@ app = Flask(__name__)
 # Cache de admins
 admin_cache = {}
 admin_cache_time = 0
+
+# Historial de mensajes
+message_count = 0
+
+def load_history():
+    if os.path.exists(HISTORY_FILE):
+        with open(HISTORY_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    return []
+
+def save_history(history):
+    with open(HISTORY_FILE, 'w', encoding='utf-8') as f:
+        json.dump(history, f, ensure_ascii=False, indent=2)
+
+def add_to_history(user_id, username, text):
+    global message_count
+    history = load_history()
+    history.append({
+        "user_id": user_id,
+        "username": username,
+        "text": text,
+        "timestamp": datetime.now().isoformat()
+    })
+    message_count += 1
+    if message_count >= MESSAGE_LIMIT:
+        logger.info(f"Limpiando historial - {message_count} mensajes")
+        history = []
+        message_count = 0
+        logger.info("Historial limpiado - Listo para nuevos mensajes")
+    save_history(history)
 
 # ============================================================================
 # FUNCIONES
@@ -86,6 +118,9 @@ def process_message(message):
         user_id = message.from_user.id
         username = message.from_user.username
         message_text = (message.text[:50] if message.text else "[sin texto]")
+        
+        # Agregar al historial
+        add_to_history(user_id, username, message_text)
         
         logger.info(f"📨 MENSAJE: Usuario {user_id} (@{username}): {message_text}")
         
