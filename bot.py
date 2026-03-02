@@ -5,7 +5,7 @@ BOT DE ALIAS OPTIMIZADO - Telegram
 - Webhooks para respuesta instantánea (<0.5 seg)
 - Keepalive cada 30 segundos (NUNCA se duerme)
 - Funcionamiento 24/7 sin interrupciones
-- Instrucciones que se borran después de 1 minuto
+- Como BotFather: rápido y siempre activo
 """
 
 import os
@@ -30,8 +30,6 @@ WEBHOOK_URL = os.getenv('WEBHOOK_URL', 'https://bot-alias-telegram.railway.app')
 WEBHOOK_PORT = int(os.getenv('WEBHOOK_PORT', '5000'))
 
 LOG_FILE = "bot_alias_live.log"
-HISTORY_FILE = "message_history.json"
-MESSAGE_LIMIT = 100
 
 # ============================================================================
 # LOGGING
@@ -58,36 +56,6 @@ app = Flask(__name__)
 admin_cache = {}
 admin_cache_time = 0
 
-# Historial de mensajes
-message_count = 0
-
-def load_history():
-    if os.path.exists(HISTORY_FILE):
-        with open(HISTORY_FILE, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    return []
-
-def save_history(history):
-    with open(HISTORY_FILE, 'w', encoding='utf-8') as f:
-        json.dump(history, f, ensure_ascii=False, indent=2)
-
-def add_to_history(user_id, username, text):
-    global message_count
-    history = load_history()
-    history.append({
-        "user_id": user_id,
-        "username": username,
-        "text": text,
-        "timestamp": datetime.now().isoformat()
-    })
-    message_count += 1
-    if message_count >= MESSAGE_LIMIT:
-        logger.info(f"Limpiando historial - {message_count} mensajes")
-        history = []
-        message_count = 0
-        logger.info("Historial limpiado - Listo para nuevos mensajes")
-    save_history(history)
-
 # ============================================================================
 # FUNCIONES
 # ============================================================================
@@ -108,41 +76,6 @@ def get_admins():
     
     return admin_cache
 
-def send_instructions(user_id, delete_after_minutes=1):
-    """Enviar instrucciones de cómo crear username."""
-    try:
-        response = (
-            "<b>📋 CÓMO CREAR TU NOMBRE DE USUARIO</b>\n\n"
-            "1️⃣ Abre Telegram → Toca tu foto de perfil\n"
-            "2️⃣ Toca 'Editar perfil'\n"
-            "3️⃣ Busca 'Nombre de usuario' (desplázate abajo)\n"
-            "4️⃣ Escribe tu nombre único (sin espacios, letras y números)\n"
-            "5️⃣ Toca el icono de verificación (✓)\n\n"
-            "<b>✅ ¡Listo! Ahora puedes escribir en el grupo.</b>"
-        )
-        
-        msg = bot.send_message(
-            user_id,
-            response,
-            parse_mode='HTML'
-        )
-        logger.info(f"✅ Instrucciones enviadas a {user_id}")
-        
-        # Borrar mensaje después de X minutos
-        def delete_after():
-            time.sleep(delete_after_minutes * 60)
-            try:
-                bot.delete_message(user_id, msg.message_id)
-                logger.info(f"✅ Instrucciones borradas después de {delete_after_minutes} minuto(s)")
-            except Exception as e:
-                logger.debug(f"Error borrando instrucciones: {e}")
-        
-        threading.Thread(target=delete_after, daemon=True).start()
-        return msg
-    
-    except Exception as e:
-        logger.error(f"❌ Error enviando instrucciones: {e}")
-
 def process_message(message):
     """Procesar mensaje de usuario."""
     try:
@@ -153,9 +86,6 @@ def process_message(message):
         user_id = message.from_user.id
         username = message.from_user.username
         message_text = (message.text[:50] if message.text else "[sin texto]")
-        
-        # Agregar al historial
-        add_to_history(user_id, username, message_text)
         
         logger.info(f"📨 MENSAJE: Usuario {user_id} (@{username}): {message_text}")
         
@@ -193,7 +123,7 @@ def process_message(message):
                 reply_markup=types.InlineKeyboardMarkup([
                     [types.InlineKeyboardButton(
                         "📖 Ver instrucciones",
-                        callback_data="show_instructions"
+                        url="https://t.me/Aliaselmenchobot?start=help"
                     )]
                 ])
             )
@@ -225,25 +155,26 @@ def handle_start(message):
     """Comando /start y /help."""
     try:
         logger.info(f"📨 /start de usuario {message.from_user.id}")
-        send_instructions(message.from_user.id, delete_after_minutes=1)
+        
+        response = (
+            "<b>📋 CÓMO CREAR TU NOMBRE DE USUARIO</b>\n\n"
+            "1️⃣ Abre Telegram → Toca tu foto de perfil\n"
+            "2️⃣ Toca 'Editar perfil'\n"
+            "3️⃣ Busca 'Nombre de usuario' (desplázate abajo)\n"
+            "4️⃣ Escribe tu nombre único (sin espacios, letras y números)\n"
+            "5️⃣ Toca el icono de verificación (✓)\n\n"
+            "<b>✅ ¡Listo! Ahora puedes escribir en el grupo.</b>"
+        )
+        
+        bot.send_message(
+            message.from_user.id,
+            response,
+            parse_mode='HTML'
+        )
+        logger.info(f"✅ Mensaje /start enviado")
     
     except Exception as e:
         logger.error(f"❌ Error en /start: {e}")
-
-@bot.callback_query_handler(func=lambda call: call.data == 'show_instructions')
-def handle_instructions_button(call):
-    """Manejar clic en botón 'Ver instrucciones'."""
-    try:
-        user_id = call.from_user.id
-        logger.info(f"📨 Usuario {user_id} pidió instrucciones")
-        
-        send_instructions(user_id, delete_after_minutes=1)
-        
-        # Responder al callback
-        bot.answer_callback_query(call.id, "✅ Instrucciones enviadas")
-    
-    except Exception as e:
-        logger.error(f"❌ Error en handle_instructions_button: {e}")
 
 @bot.message_handler(content_types=['text'])
 def handle_message(message):
@@ -279,8 +210,8 @@ def keepalive_aggressive():
     """Mantener el bot activo CADA 30 SEGUNDOS - NUNCA se duerme."""
     while True:
         try:
-            time.sleep(30)
-            bot.get_me()
+            time.sleep(30)  # 30 segundos
+            bot.get_me()  # Ping a Telegram
             logger.info("✅ Keepalive: Bot activo (cada 30 seg)")
         except Exception as e:
             logger.error(f"❌ Error en keepalive: {e}")
@@ -315,7 +246,6 @@ if __name__ == "__main__":
     logger.info("=" * 80)
     logger.info("✅ Bot LISTO - Responde en <0.5 segundos")
     logger.info("✅ NUNCA se duerme - Keepalive cada 30 segundos")
-    logger.info("✅ Instrucciones se borran después de 1 minuto")
     logger.info("=" * 80)
     
     # Iniciar Flask
