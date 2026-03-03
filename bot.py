@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 BOT_TOKEN = "8491596754:AAHBnLtSRI9Ii3uL6y-rcmLXxfU_7_7bips"
 TARGET_GROUP_ID = -1003534894759
 
-logger.info("🤖 BOT V7 - MEJORADO CON DICCIONARIO AMPLIO")
+logger.info("🤖 BOT V8 - NOTIFICACIONES PROFESIONALES")
 bot = TeleBot(BOT_TOKEN, skip_pending=True)
 logger.info("✅ CONECTADO A TELEGRAM")
 
@@ -73,7 +73,6 @@ def normalize(text):
     text = text.lower()
     text = unicodedata.normalize('NFKD', text)
     text = "".join([c for c in text if not unicodedata.combining(c)])
-    # Reemplazar números y símbolos comunes usados para ofuscación
     replacements = {
         '@': 'a', '4': 'a', '3': 'e', '1': 'i', '0': 'o', '5': 's', '$': 's',
         '7': 't', '8': 'b', '9': 'g', '2': 'z', '!': 'i', '|': 'i',
@@ -123,18 +122,25 @@ def handle_message(message):
         if not user.username:
             try:
                 bot.delete_message(message.chat.id, message.message_id)
-                msg_text = f"""⚠️ <b>{user.first_name or 'Usuario'}</b>, necesitas un alias
+                msg_text = f"""━━━━━━━━━━━━━━━━━━━━━
+⚠️ NOMBRE DE USUARIO REQUERIDO
 
-<b>📋 Problema:</b>
-No puedes escribir sin nombre de usuario.
+👤 Hola {user.first_name or 'Usuario'}
 
-<b>✅ Solución:</b>
-1️⃣ Abre tu perfil
-2️⃣ Edita perfil
-3️⃣ Busca "Nombre de usuario"
-4️⃣ Crea tu alias
-5️⃣ Guarda cambios"""
-                notif = bot.send_message(message.chat.id, msg_text)
+Este grupo requiere que todos los miembros tengan un nombre de usuario (@alias) para poder escribir.
+
+📋 PASOS PARA CREAR TU ALIAS:
+
+1. Abre tu perfil de Telegram
+2. Toca en "Editar perfil"
+3. Busca la opción "Nombre de usuario"
+4. Crea un alias único
+5. Guarda los cambios
+
+Una vez que tengas alias, podrás escribir sin problemas.
+
+━━━━━━━━━━━━━━━━━━━━━"""
+                notif = bot.send_message(message.chat.id, msg_text, parse_mode="Markdown")
                 threading.Timer(30, lambda: safe_delete(notif.chat.id, notif.message_id)).start()
                 logger.info(f"❌ {user.first_name} - Sin username")
             except Exception as e: logger.error(f"Error: {e}")
@@ -151,18 +157,35 @@ No puedes escribir sin nombre de usuario.
                 user_warns[user.id][message.chat.id] += 1
                 warns = user_warns[user.id][message.chat.id]
                 
-                msg_text = f"""🚫 <b>{user.first_name or 'Usuario'}</b>, contenido no permitido
+                msg_text = f"""━━━━━━━━━━━━━━━━━━━━━
+🚫 CONTENIDO NO PERMITIDO
 
-<b>⚠️ Advertencias:</b> {warns}/3"""
+👤 {user.first_name or 'Usuario'}
+
+Tu mensaje fue eliminado por contener contenido prohibido en este grupo.
+
+⚠️ ADVERTENCIAS: {warns}/3"""
                 
                 if warns >= 3:
-                    msg_text += "\n\n❌ <b>HAS SIDO EXPULSADO DEL GRUPO</b>"
+                    msg_text += f"""
+
+━━━━━━━━━━━━━━━━━━━━━
+❌ HAS SIDO EXPULSADO
+
+Alcanzaste 3 advertencias y fuiste removido del grupo.
+Si crees que es un error, contacta a los administradores.
+━━━━━━━━━━━━━━━━━━━━━"""
                     try: bot.kick_chat_member(message.chat.id, user.id)
                     except: pass
                 else:
-                    msg_text += f"\n\n📌 Te quedan <b>{3 - warns}</b> advertencia(s)."
+                    remaining = 3 - warns
+                    msg_text += f"""
+
+📌 Te quedan {remaining} advertencia(s) antes de ser expulsado.
+
+━━━━━━━━━━━━━━━━━━━━━"""
                 
-                notif = bot.send_message(message.chat.id, msg_text)
+                notif = bot.send_message(message.chat.id, msg_text, parse_mode="Markdown")
                 threading.Timer(30, lambda: safe_delete(notif.chat.id, notif.message_id)).start()
                 logger.info(f"❌ {user.first_name} - Palabra prohibida: '{word}'")
             except Exception as e: logger.error(f"Error: {e}")
@@ -172,10 +195,17 @@ No puedes escribir sin nombre de usuario.
         if re.search(r'http[s]?://|www\.', text):
             try:
                 bot.delete_message(message.chat.id, message.message_id)
-                msg_text = f"""🔗 <b>{user.first_name or 'Usuario'}</b>, enlaces no permitidos
+                msg_text = f"""━━━━━━━━━━━━━━━━━━━━━
+🔗 ENLACES NO PERMITIDOS
 
-<b>❌ Los enlaces están prohibidos</b> en este grupo."""
-                notif = bot.send_message(message.chat.id, msg_text)
+👤 {user.first_name or 'Usuario'}
+
+Tu mensaje fue eliminado porque contiene un enlace.
+
+Los enlaces no están permitidos en este grupo.
+
+━━━━━━━━━━━━━━━━━━━━━"""
+                notif = bot.send_message(message.chat.id, msg_text, parse_mode="Markdown")
                 threading.Timer(30, lambda: safe_delete(notif.chat.id, notif.message_id)).start()
                 logger.info(f"❌ {user.first_name} - Intento de enlace")
             except Exception as e: logger.error(f"Error: {e}")
@@ -210,7 +240,7 @@ signal.signal(signal.SIGINT, signal_handler)
 signal.signal(signal.SIGTERM, signal_handler)
 
 if __name__ == "__main__":
-    logger.info("🚀 INICIANDO BOT V7 - MEJORADO Y SEGURO")
+    logger.info("🚀 INICIANDO BOT V8 - NOTIFICACIONES PROFESIONALES")
     logger.info(f"📊 Diccionario cargado: {len(BANNED_WORDS)} palabras prohibidas")
     
     keepalive_thread = threading.Thread(target=keepalive_loop, daemon=True)
