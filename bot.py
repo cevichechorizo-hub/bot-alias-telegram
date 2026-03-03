@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 BOT_TOKEN = "8491596754:AAHBnLtSRI9Ii3uL6y-rcmLXxfU_7_7bips"
 TARGET_GROUP_ID = -1003534894759
 
-logger.info("🤖 BOT V17 - PYTELEGRAMBOT (CONFIGURACIÓN CORRECTA)")
+logger.info("🤖 BOT V18 - DETECCIÓN MEJORADA")
 
 # DICCIONARIO AMPLIO DE PALABRAS PROHIBIDAS
 BANNED_WORDS = {
@@ -61,7 +61,6 @@ bot = TeleBot(BOT_TOKEN, skip_pending=True)
 logger.info("✅ CONECTADO A TELEGRAM")
 
 user_warns = defaultdict(lambda: defaultdict(int))
-messages_to_delete = {}
 
 def normalize(text):
     if not text: return ""
@@ -71,18 +70,22 @@ def normalize(text):
     replacements = {
         '@': 'a', '4': 'a', '3': 'e', '1': 'i', '0': 'o', '5': 's', '$': 's',
         '7': 't', '8': 'b', '9': 'g', '2': 'z', '!': 'i', '|': 'i',
-        '.': '', '-': '', '_': '', ' ': '', ',': ''
     }
     for old, new in replacements.items():
         text = text.replace(old, new)
     return text
 
 def has_banned_word(text):
+    """Detecta palabras prohibidas usando substring matching"""
     normalized = normalize(text)
-    words = set(re.findall(r'\b\w+\b', normalized))
-    for word in words:
-        if word in BANNED_WORDS:
+    
+    # Búsqueda por substring (detecta palabras dentro de frases)
+    for word in BANNED_WORDS:
+        normalized_word = normalize(word)
+        # Buscar la palabra como substring
+        if normalized_word in normalized:
             return True, word
+    
     return False, None
 
 def delete_after_delay(chat_id, msg_id, delay=10):
@@ -144,7 +147,7 @@ Una vez que tengas alias, podrás escribir sin problemas.
         if not text:
             return
         
-        # VERIFICACIÓN 2: PALABRAS PROHIBIDAS
+        # VERIFICACIÓN 2: PALABRAS PROHIBIDAS (MEJORADA)
         is_banned, word = has_banned_word(text)
         if is_banned:
             try:
@@ -220,7 +223,7 @@ signal.signal(signal.SIGINT, signal_handler)
 signal.signal(signal.SIGTERM, signal_handler)
 
 if __name__ == "__main__":
-    logger.info("🚀 INICIANDO BOT V17")
+    logger.info("🚀 INICIANDO BOT V18")
     logger.info(f"📊 Diccionario cargado: {len(BANNED_WORDS)} palabras prohibidas")
     
     while True:
