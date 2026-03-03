@@ -9,7 +9,10 @@ logger = logging.getLogger(__name__)
 BOT_TOKEN = "8491596754:AAHBnLtSRI9Ii3uL6y-rcmLXxfU_7_7bips"
 TARGET_GROUP_ID = -1003534894759
 
-logger.info("🤖 BOT V18 - DETECCIÓN MEJORADA")
+# IDs DE MODERADORES EXENTOS (NO SERÁN BLOQUEADOS)
+MODERATOR_IDS = {8365738536}
+
+logger.info("🤖 BOT V19 - MODERADORES EXENTOS")
 
 # DICCIONARIO AMPLIO DE PALABRAS PROHIBIDAS
 BANNED_WORDS = {
@@ -105,11 +108,17 @@ def handle_message(message):
     try:
         user = message.from_user
         
-        # Verificar si es admin
+        # VERIFICACIÓN 0: MODERADOR EXENTO
+        if user.id in MODERATOR_IDS:
+            logger.info(f"✅ {user.first_name} (ID: {user.id}) - MODERADOR EXENTO - Mensaje permitido")
+            return
+        
+        # Verificar si es admin del grupo
         try:
             admins = bot.get_chat_administrators(TARGET_GROUP_ID)
             admin_ids = {admin.user.id for admin in admins}
             if user.id in admin_ids:
+                logger.info(f"✅ {user.first_name} - ADMIN DEL GRUPO - Mensaje permitido")
                 return
         except:
             pass
@@ -223,8 +232,9 @@ signal.signal(signal.SIGINT, signal_handler)
 signal.signal(signal.SIGTERM, signal_handler)
 
 if __name__ == "__main__":
-    logger.info("🚀 INICIANDO BOT V18")
+    logger.info("🚀 INICIANDO BOT V19")
     logger.info(f"📊 Diccionario cargado: {len(BANNED_WORDS)} palabras prohibidas")
+    logger.info(f"👤 Moderadores exentos: {MODERATOR_IDS}")
     
     while True:
         try:
