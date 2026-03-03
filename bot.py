@@ -3,7 +3,6 @@ import asyncio, logging, re, unicodedata, signal, sys, time
 from collections import defaultdict
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.types import Message
-from aiogram.filters import Command
 from aiogram.fsm.storage.memory import MemoryStorage
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -12,7 +11,7 @@ logger = logging.getLogger(__name__)
 BOT_TOKEN = "8491596754:AAHBnLtSRI9Ii3uL6y-rcmLXxfU_7_7bips"
 TARGET_GROUP_ID = -1003534894759
 
-logger.info("🤖 BOT V15 - AIOGRAM (ASYNC, SIN THREADING)")
+logger.info("🤖 BOT V16 - AIOGRAM (FIXED SESSION CLEANUP)")
 
 # DICCIONARIO AMPLIO DE PALABRAS PROHIBIDAS
 BANNED_WORDS = {
@@ -80,7 +79,6 @@ BANNED_WORDS = {
 
 # Estado global
 user_warns = defaultdict(lambda: defaultdict(int))
-messages_to_delete = {}
 
 def normalize(text):
     """Normaliza texto para detección robusta"""
@@ -113,7 +111,7 @@ async def delete_message_after_delay(bot, chat_id, message_id, delay=10):
         await bot.delete_message(chat_id, message_id)
         logger.info(f"🗑️ Mensaje {message_id} borrado después de {delay}s")
     except Exception as e:
-        logger.error(f"Error borrando mensaje: {e}")
+        pass
 
 async def message_handler(message: Message, bot: Bot):
     """Maneja mensajes del grupo"""
@@ -236,11 +234,24 @@ Los enlaces no están permitidos en este grupo.
 
 async def main():
     """Función principal"""
-    logger.info("🚀 INICIANDO BOT V15 - AIOGRAM")
+    logger.info("🚀 INICIANDO BOT V16 - AIOGRAM (FIXED)")
     logger.info(f"📊 Diccionario cargado: {len(BANNED_WORDS)} palabras prohibidas")
     
-    # Crear bot y dispatcher
+    # Crear bot
     bot = Bot(token=BOT_TOKEN)
+    
+    # Limpiar sesión anterior esperando
+    logger.info("⏳ Esperando 5 segundos para limpiar sesión anterior...")
+    await asyncio.sleep(5)
+    
+    # Obtener updates pendientes para limpiar
+    logger.info("🧹 Limpiando updates pendientes...")
+    try:
+        await bot.get_updates(offset=-1)
+    except:
+        pass
+    
+    # Crear dispatcher
     storage = MemoryStorage()
     dp = Dispatcher(storage=storage)
     
@@ -248,9 +259,9 @@ async def main():
     dp.message.register(lambda msg: message_handler(msg, bot))
     
     logger.info("✅ CONECTADO A TELEGRAM")
+    logger.info("🚀 Iniciando polling...")
     
     try:
-        logger.info("🚀 Iniciando polling...")
         await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
     except Exception as e:
         logger.error(f"❌ Error en polling: {e}")
