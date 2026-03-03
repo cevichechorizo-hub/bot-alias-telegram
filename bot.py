@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import os, logging, re, unicodedata, signal, sys, time
+import os, logging, re, unicodedata, signal, sys, time, threading
 from collections import defaultdict
 from telebot import TeleBot
 
@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 BOT_TOKEN = "8491596754:AAHBnLtSRI9Ii3uL6y-rcmLXxfU_7_7bips"
 TARGET_GROUP_ID = -1003534894759
 
-logger.info("🤖 BOT V11 - SIN CONFLICTOS DE THREADING")
+logger.info("🤖 BOT V12 - ELIMINACIÓN EN SEGUNDO PLANO")
 bot = TeleBot(BOT_TOKEN, skip_pending=True)
 logger.info("✅ CONECTADO A TELEGRAM")
 
@@ -69,6 +69,7 @@ BANNED_WORDS = {
 
 # Cola de mensajes a borrar: {(chat_id, msg_id): timestamp_expiration}
 messages_to_delete = {}
+delete_lock = threading.Lock()
 
 def normalize(text):
     """Normaliza texto para detección robusta"""
@@ -112,19 +113,30 @@ user_warns = defaultdict(lambda: defaultdict(int))
 
 def schedule_delete(chat_id, message_id, delay=10):
     """Programa un mensaje para ser borrado en 'delay' segundos"""
-    messages_to_delete[(chat_id, message_id)] = time.time() + delay
+    with delete_lock:
+        messages_to_delete[(chat_id, message_id)] = time.time() + delay
 
-def process_deletions():
-    """Procesa los mensajes que deben ser borrados"""
-    current_time = time.time()
-    to_delete = [(k, v) for k, v in messages_to_delete.items() if v <= current_time]
-    
-    for (chat_id, msg_id), _ in to_delete:
+def background_delete_worker():
+    """Thread en segundo plano que borra mensajes"""
+    while True:
         try:
-            bot.delete_message(chat_id, msg_id)
-            del messages_to_delete[(chat_id, msg_id)]
-        except:
-            del messages_to_delete[(chat_id, msg_id)]
+            time.sleep(1)  # Revisar cada segundo
+            current_time = time.time()
+            
+            with delete_lock:
+                to_delete = [(k, v) for k, v in messages_to_delete.items() if v <= current_time]
+                
+                for (chat_id, msg_id), _ in to_delete:
+                    try:
+                        bot.delete_message(chat_id, msg_id)
+                        logger.info(f"🗑️ Mensaje {msg_id} borrado después de 10s")
+                    except Exception as e:
+                        logger.error(f"Error borrando {msg_id}: {e}")
+                    finally:
+                        if (chat_id, msg_id) in messages_to_delete:
+                            del messages_to_delete[(chat_id, msg_id)]
+        except Exception as e:
+            logger.error(f"Error en background worker: {e}")
 
 @bot.message_handler(func=lambda msg: msg.chat.id == TARGET_GROUP_ID)
 def handle_message(message):
@@ -156,7 +168,7 @@ Una vez que tengas alias, podrás escribir sin problemas.
 ━━━━━━━━━━━━━━━━━━━━━"""
                 notif = bot.send_message(message.chat.id, msg_text)
                 schedule_delete(notif.chat.id, notif.message_id, 10)
-                logger.info(f"❌ {user.first_name} - Sin username (Se borrará en 10s)")
+                logger.info(f"❌ {user.first_name} - Sin username")
             except Exception as e: logger.error(f"Error: {e}")
             return
         
@@ -201,7 +213,7 @@ Si crees que es un error, contacta a los administradores.
                 
                 notif = bot.send_message(message.chat.id, msg_text)
                 schedule_delete(notif.chat.id, notif.message_id, 10)
-                logger.info(f"❌ {user.first_name} - Palabra prohibida: '{word}' (Se borrará en 10s)")
+                logger.info(f"❌ {user.first_name} - Palabra prohibida: '{word}'")
             except Exception as e: logger.error(f"Error: {e}")
             return
         
@@ -221,7 +233,7 @@ Los enlaces no están permitidos en este grupo.
 ━━━━━━━━━━━━━━━━━━━━━"""
                 notif = bot.send_message(message.chat.id, msg_text)
                 schedule_delete(notif.chat.id, notif.message_id, 10)
-                logger.info(f"❌ {user.first_name} - Intento de enlace (Se borrará en 10s)")
+                logger.info(f"❌ {user.first_name} - Intento de enlace")
             except Exception as e: logger.error(f"Error: {e}")
             return
     except Exception as e: logger.error(f"Error general: {e}")
@@ -235,19 +247,18 @@ signal.signal(signal.SIGINT, signal_handler)
 signal.signal(signal.SIGTERM, signal_handler)
 
 if __name__ == "__main__":
-    logger.info("🚀 INICIANDO BOT V11 - SIN CONFLICTOS DE THREADING")
+    logger.info("🚀 INICIANDO BOT V12 - ELIMINACIÓN EN SEGUNDO PLANO")
     logger.info(f"📊 Diccionario cargado: {len(BANNED_WORDS)} palabras prohibidas")
     
+    # Iniciar thread de eliminación en segundo plano
+    delete_thread = threading.Thread(target=background_delete_worker, daemon=True)
+    delete_thread.start()
+    logger.info("✅ Thread de eliminación iniciado")
+    
     try:
-        while True:
-            try:
-                # Procesar eliminaciones cada iteración
-                process_deletions()
-                logger.info("🚀 Iniciando polling...")
-                bot.infinity_polling(timeout=60, long_polling_timeout=30, skip_pending=True)
-            except Exception as e:
-                logger.error(f"❌ Error en polling: {e}")
-                logger.info("⏳ Reintentando en 5 segundos...")
-                time.sleep(5)
+        logger.info("🚀 Iniciando polling...")
+        bot.infinity_polling(timeout=60, long_polling_timeout=30, skip_pending=True)
+    except Exception as e:
+        logger.error(f"❌ Error en polling: {e}")
     except KeyboardInterrupt:
         signal_handler(None, None)
