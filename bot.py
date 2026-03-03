@@ -9,30 +9,82 @@ logger = logging.getLogger(__name__)
 BOT_TOKEN = "8491596754:AAHBnLtSRI9Ii3uL6y-rcmLXxfU_7_7bips"
 TARGET_GROUP_ID = -1003534894759
 
-logger.info("🤖 BOT V6 - ROBUSTO Y CONFIABLE")
+logger.info("🤖 BOT V7 - MEJORADO CON DICCIONARIO AMPLIO")
 bot = TeleBot(BOT_TOKEN, skip_pending=True)
 logger.info("✅ CONECTADO A TELEGRAM")
 
-BANNED_WORDS = {"sexo", "porno", "xxx", "pedofilia", "cepecito", "anal", "anus", "anilingus", 
-"ape", "arsehole", "asshole", "asswipe", "bastard", "bitch", "cock", "cocksucker", "crap", 
-"damn", "dick", "dickhead", "dildo", "douche", "fuck", "fucker", "fuckhead", "fucking", 
-"fuckwad", "fuckwit", "goddamn", "goddamned", "hell", "horny", "horseshit", "jackass", 
-"jerk", "jerkoff", "jism", "jizz", "motherfucker", "motherfucking", "piss", "pissed", 
-"pissing", "pussy", "pussies", "shit", "shitass", "shithead", "shithole", "shitty", 
-"slut", "slutty", "smutty", "snatch", "son", "sonofabitch", "taint", "tits", "titties", 
-"tittyfucker", "titty", "twat", "twatwaffle", "wank", "wanker", "whore", "whored", 
-"whores", "whoring", "whorishly", "whorishness"}
+# DICCIONARIO AMPLIO DE PALABRAS PROHIBIDAS
+BANNED_WORDS = {
+    # CONTENIDO SEXUAL EXPLÍCITO
+    "sexo", "porno", "pornografía", "xxx", "anal", "anus", "anilingus", "asswipe",
+    "bastard", "bitch", "cock", "cocksucker", "crap", "damn", "dick", "dickhead",
+    "dildo", "douche", "fuck", "fucker", "fuckhead", "fucking", "fuckwad", "fuckwit",
+    "goddamn", "goddamned", "hell", "horny", "horseshit", "jackass", "jerk", "jerkoff",
+    "jism", "jizz", "motherfucker", "motherfucking", "piss", "pissed", "pissing",
+    "pussy", "pussies", "shit", "shitass", "shithead", "shithole", "shitty", "slut",
+    "slutty", "smutty", "snatch", "son", "sonofabitch", "taint", "tits", "titties",
+    "tittyfucker", "titty", "twat", "twatwaffle", "wank", "wanker", "whore", "whored",
+    "whores", "whoring", "whorishly", "whorishness", "cum", "cumshot", "blowjob",
+    "handjob", "gangbang", "bukkake", "creampie", "squirt", "orgasm", "orgy",
+    
+    # EXPLOTACIÓN INFANTIL (CSAM/CP) - CRÍTICO
+    "pedofilia", "pedófilo", "pedo", "cp", "csam", "child", "porn", "loli", "lolita",
+    "shota", "shotacon", "kiddies", "kiddie", "child abuse", "child exploitation",
+    "minor", "underage", "toddler", "infant", "baby", "little girl", "little boy",
+    "grooming", "groomer", "pedo ring", "child trafficking", "child molester",
+    "child predator", "jailbait", "barely legal", "teen porn", "young girls",
+    "young boys", "preteen", "prepubescent", "pedofile", "kidporn", "childporn",
+    
+    # INSULTOS Y PALABRAS OFENSIVAS
+    "arsehole", "asshole", "ape", "retard", "retarded", "stupid", "idiot", "dumb",
+    "moron", "imbecile", "cretin", "halfwit", "dimwit", "blockhead", "bonehead",
+    "dumbass", "dumbshit", "fuckface", "assface", "shitface", "cunt", "cunts",
+    "nigger", "nigga", "faggot", "fag", "homo", "gay", "lesbian", "tranny",
+    "whore", "slut", "bitch", "hoe", "ho", "prostitute", "escort",
+    
+    # VIOLENCIA Y AMENAZAS
+    "kill", "murder", "rape", "assault", "attack", "bomb", "shoot", "stab",
+    "violence", "violent", "threat", "threatening", "death threat", "rape threat",
+    "i will kill", "i will rape", "i will hurt", "i will beat",
+    
+    # DISCRIMINACIÓN Y ODIO
+    "racist", "racism", "sexist", "sexism", "homophobic", "transphobic",
+    "nazi", "hitler", "klan", "white power", "white supremacy", "aryan",
+    
+    # DROGAS Y SUSTANCIAS ILEGALES
+    "cocaine", "heroin", "meth", "methamphetamine", "fentanyl", "opioid",
+    "lsd", "acid", "mdma", "ecstasy", "xanax", "viagra", "cialis",
+    "weed", "marijuana", "cannabis", "pot", "hash", "hashish", "molly",
+    "crack", "crystal", "ice", "speed", "amphetamine", "pcp", "ketamine",
+    
+    # VARIANTES Y OFUSCACIONES COMUNES
+    "s3x", "s3xo", "p0rn", "p0rno", "xxx", "x3x", "pedo.", "ped0",
+    "ch1ld", "ch1ld p0rn", "c.p", "c-p", "cp.", "csam.", "abuse",
+    
+    # SPAM Y CONTENIDO NO DESEADO
+    "casino", "poker", "bet", "betting", "gambling", "slots", "roulette",
+    "forex", "crypto scam", "bitcoin scam", "nft scam", "get rich quick",
+    "click here", "buy now", "limited time", "act now", "urgent",
+}
 
 def normalize(text):
+    """Normaliza texto para detección robusta"""
     if not text: return ""
     text = text.lower()
     text = unicodedata.normalize('NFKD', text)
     text = "".join([c for c in text if not unicodedata.combining(c)])
-    for old, new in {'@': 'a', '4': 'a', '3': 'e', '1': 'i', '0': 'o', '5': 's', '$': 's'}.items():
+    # Reemplazar números y símbolos comunes usados para ofuscación
+    replacements = {
+        '@': 'a', '4': 'a', '3': 'e', '1': 'i', '0': 'o', '5': 's', '$': 's',
+        '7': 't', '8': 'b', '9': 'g', '2': 'z', '!': 'i', '|': 'i',
+        '.': '', '-': '', '_': '', ' ': '', ',': ''
+    }
+    for old, new in replacements.items():
         text = text.replace(old, new)
     return text
 
 def has_banned_word(text):
+    """Detecta palabras prohibidas con normalización"""
     normalized = normalize(text)
     words = set(re.findall(r'\b\w+\b', normalized))
     for word in words:
@@ -44,6 +96,7 @@ admin_cache = set()
 admin_cache_time = 0
 
 def get_admins():
+    """Obtiene lista de administradores con caché"""
     global admin_cache, admin_cache_time
     if time.time() - admin_cache_time > 600:
         try:
@@ -56,6 +109,7 @@ def get_admins():
 user_warns = defaultdict(lambda: defaultdict(int))
 
 def safe_delete(chat_id, message_id):
+    """Elimina mensaje de forma segura"""
     try: bot.delete_message(chat_id, message_id)
     except: pass
 
@@ -65,20 +119,21 @@ def handle_message(message):
         user = message.from_user
         if user.id in get_admins(): return
         
+        # VERIFICACIÓN 1: USUARIO SIN ALIAS
         if not user.username:
             try:
                 bot.delete_message(message.chat.id, message.message_id)
-                msg_text = f"""⚠️ <b>{user.first_name or 'Usuario'}</b>, no tienes alias
+                msg_text = f"""⚠️ <b>{user.first_name or 'Usuario'}</b>, necesitas un alias
 
-<b>Problema:</b>
-No puedes escribir sin un nombre de usuario.
+<b>📋 Problema:</b>
+No puedes escribir sin nombre de usuario.
 
-<b>Solución:</b>
-1. Abre tu perfil
-2. Edita perfil
-3. Busca "Nombre de usuario"
-4. Crea tu alias
-5. Guarda cambios"""
+<b>✅ Solución:</b>
+1️⃣ Abre tu perfil
+2️⃣ Edita perfil
+3️⃣ Busca "Nombre de usuario"
+4️⃣ Crea tu alias
+5️⃣ Guarda cambios"""
                 notif = bot.send_message(message.chat.id, msg_text)
                 threading.Timer(30, lambda: safe_delete(notif.chat.id, notif.message_id)).start()
                 logger.info(f"❌ {user.first_name} - Sin username")
@@ -88,46 +143,51 @@ No puedes escribir sin un nombre de usuario.
         text = message.text or message.caption or ""
         if not text: return
         
+        # VERIFICACIÓN 2: PALABRAS PROHIBIDAS
         is_banned, word = has_banned_word(text)
         if is_banned:
             try:
                 bot.delete_message(message.chat.id, message.message_id)
                 user_warns[user.id][message.chat.id] += 1
                 warns = user_warns[user.id][message.chat.id]
-                msg_text = f"""⚠️ <b>{user.first_name or 'Usuario'}</b>, contenido no permitido
+                
+                msg_text = f"""🚫 <b>{user.first_name or 'Usuario'}</b>, contenido no permitido
 
-<b>Advertencias:</b> {warns}/3"""
+<b>⚠️ Advertencias:</b> {warns}/3"""
+                
                 if warns >= 3:
-                    msg_text += "\n\n❌ <b>HAS SIDO EXPULSADO</b>"
+                    msg_text += "\n\n❌ <b>HAS SIDO EXPULSADO DEL GRUPO</b>"
                     try: bot.kick_chat_member(message.chat.id, user.id)
                     except: pass
                 else:
-                    msg_text += f"\n\nTe quedan {3 - warns} advertencia(s)."
+                    msg_text += f"\n\n📌 Te quedan <b>{3 - warns}</b> advertencia(s)."
                 
                 notif = bot.send_message(message.chat.id, msg_text)
                 threading.Timer(30, lambda: safe_delete(notif.chat.id, notif.message_id)).start()
-                logger.info(f"❌ {user.first_name} - Palabra: '{word}'")
+                logger.info(f"❌ {user.first_name} - Palabra prohibida: '{word}'")
             except Exception as e: logger.error(f"Error: {e}")
             return
         
+        # VERIFICACIÓN 3: ENLACES/URLS
         if re.search(r'http[s]?://|www\.', text):
             try:
                 bot.delete_message(message.chat.id, message.message_id)
-                msg_text = f"""⚠️ <b>{user.first_name or 'Usuario'}</b>, enlaces no permitidos
+                msg_text = f"""🔗 <b>{user.first_name or 'Usuario'}</b>, enlaces no permitidos
 
-Los enlaces no están permitidos aquí."""
+<b>❌ Los enlaces están prohibidos</b> en este grupo."""
                 notif = bot.send_message(message.chat.id, msg_text)
                 threading.Timer(30, lambda: safe_delete(notif.chat.id, notif.message_id)).start()
-                logger.info(f"❌ {user.first_name} - Enlace")
+                logger.info(f"❌ {user.first_name} - Intento de enlace")
             except Exception as e: logger.error(f"Error: {e}")
             return
     except Exception as e: logger.error(f"Error general: {e}")
 
 def keepalive_loop():
+    """Mantiene el bot activo 24/7"""
     while True:
         try:
             time.sleep(30)
-            logger.info("✅ Keepalive: Bot activo 24/7")
+            logger.info("✅ Keepalive: Bot activo 24/7 - No se dormirá")
         except: pass
 
 def polling_loop():
@@ -142,7 +202,7 @@ def polling_loop():
             time.sleep(5)
 
 def signal_handler(sig, frame):
-    logger.info("🛑 TERMINANDO")
+    logger.info("🛑 TERMINANDO BOT")
     bot.stop_polling()
     sys.exit(0)
 
@@ -150,7 +210,8 @@ signal.signal(signal.SIGINT, signal_handler)
 signal.signal(signal.SIGTERM, signal_handler)
 
 if __name__ == "__main__":
-    logger.info("🚀 INICIANDO BOT ROBUSTO V6")
+    logger.info("🚀 INICIANDO BOT V7 - MEJORADO Y SEGURO")
+    logger.info(f"📊 Diccionario cargado: {len(BANNED_WORDS)} palabras prohibidas")
     
     keepalive_thread = threading.Thread(target=keepalive_loop, daemon=True)
     keepalive_thread.start()
