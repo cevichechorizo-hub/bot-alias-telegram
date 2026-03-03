@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import os, logging, re, unicodedata, signal, sys, time
+import os, logging, re, unicodedata, signal, sys, time, threading
 from collections import defaultdict
 from telebot import TeleBot
 
@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 BOT_TOKEN = "8491596754:AAHBnLtSRI9Ii3uL6y-rcmLXxfU_7_7bips"
 TARGET_GROUP_ID = -1003534894759
 
-logger.info("🤖 BOT V9 - POLLING SIN CONFLICTOS")
+logger.info("🤖 BOT V10 - NOTIFICACIONES SE BORRAN EN 10 SEGUNDOS")
 bot = TeleBot(BOT_TOKEN, skip_pending=True)
 logger.info("✅ CONECTADO A TELEGRAM")
 
@@ -106,12 +106,13 @@ def get_admins():
     return admin_cache
 
 user_warns = defaultdict(lambda: defaultdict(int))
-last_keepalive = time.time()
 
 def safe_delete(chat_id, message_id):
     """Elimina mensaje de forma segura"""
-    try: bot.delete_message(chat_id, message_id)
-    except: pass
+    try: 
+        bot.delete_message(chat_id, message_id)
+    except: 
+        pass
 
 @bot.message_handler(func=lambda msg: msg.chat.id == TARGET_GROUP_ID)
 def handle_message(message):
@@ -142,8 +143,8 @@ Una vez que tengas alias, podrás escribir sin problemas.
 
 ━━━━━━━━━━━━━━━━━━━━━"""
                 notif = bot.send_message(message.chat.id, msg_text)
-                bot.register_message_handler(lambda m: safe_delete(notif.chat.id, notif.message_id), pass_test=lambda m: False)
-                logger.info(f"❌ {user.first_name} - Sin username")
+                threading.Timer(10, lambda: safe_delete(notif.chat.id, notif.message_id)).start()
+                logger.info(f"❌ {user.first_name} - Sin username (Se borrará en 10s)")
             except Exception as e: logger.error(f"Error: {e}")
             return
         
@@ -187,7 +188,8 @@ Si crees que es un error, contacta a los administradores.
 ━━━━━━━━━━━━━━━━━━━━━"""
                 
                 notif = bot.send_message(message.chat.id, msg_text)
-                logger.info(f"❌ {user.first_name} - Palabra prohibida: '{word}'")
+                threading.Timer(10, lambda: safe_delete(notif.chat.id, notif.message_id)).start()
+                logger.info(f"❌ {user.first_name} - Palabra prohibida: '{word}' (Se borrará en 10s)")
             except Exception as e: logger.error(f"Error: {e}")
             return
         
@@ -206,10 +208,22 @@ Los enlaces no están permitidos en este grupo.
 
 ━━━━━━━━━━━━━━━━━━━━━"""
                 notif = bot.send_message(message.chat.id, msg_text)
-                logger.info(f"❌ {user.first_name} - Intento de enlace")
+                threading.Timer(10, lambda: safe_delete(notif.chat.id, notif.message_id)).start()
+                logger.info(f"❌ {user.first_name} - Intento de enlace (Se borrará en 10s)")
             except Exception as e: logger.error(f"Error: {e}")
             return
     except Exception as e: logger.error(f"Error general: {e}")
+
+def polling_loop():
+    """Polling robusto con reintentos infinitos"""
+    while True:
+        try:
+            logger.info("🚀 Iniciando polling...")
+            bot.infinity_polling(timeout=60, long_polling_timeout=30, skip_pending=True)
+        except Exception as e:
+            logger.error(f"❌ Error en polling: {e}")
+            logger.info("⏳ Reintentando en 5 segundos...")
+            time.sleep(5)
 
 def signal_handler(sig, frame):
     logger.info("🛑 TERMINANDO BOT")
@@ -220,23 +234,10 @@ signal.signal(signal.SIGINT, signal_handler)
 signal.signal(signal.SIGTERM, signal_handler)
 
 if __name__ == "__main__":
-    logger.info("🚀 INICIANDO BOT V9 - POLLING LIMPIO SIN CONFLICTOS")
+    logger.info("🚀 INICIANDO BOT V10 - NOTIFICACIONES SE BORRAN EN 10 SEGUNDOS")
     logger.info(f"📊 Diccionario cargado: {len(BANNED_WORDS)} palabras prohibidas")
     
     try:
-        while True:
-            try:
-                logger.info("🚀 Iniciando polling...")
-                bot.infinity_polling(timeout=60, long_polling_timeout=30, skip_pending=True)
-            except Exception as e:
-                logger.error(f"❌ Error en polling: {e}")
-                logger.info("⏳ Reintentando en 5 segundos...")
-                time.sleep(5)
-                
-                # Keepalive cada 30 segundos
-                current_time = time.time()
-                if current_time - last_keepalive > 30:
-                    logger.info("✅ Keepalive: Bot activo 24/7 - No se dormirá")
-                    last_keepalive = current_time
+        polling_loop()
     except KeyboardInterrupt:
         signal_handler(None, None)
