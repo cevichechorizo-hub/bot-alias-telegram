@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
-import os, logging, re, unicodedata, signal, sys, time
+import asyncio, logging, re, unicodedata, signal, sys, time
 from collections import defaultdict
-from telebot import TeleBot
+from aiogram import Bot, Dispatcher, types, F
+from aiogram.types import Message
+from aiogram.filters import Command
+from aiogram.fsm.storage.memory import MemoryStorage
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
@@ -9,9 +12,7 @@ logger = logging.getLogger(__name__)
 BOT_TOKEN = "8491596754:AAHBnLtSRI9Ii3uL6y-rcmLXxfU_7_7bips"
 TARGET_GROUP_ID = -1003534894759
 
-logger.info("🤖 BOT V14 - SIN DAEMON THREADS")
-bot = TeleBot(BOT_TOKEN, skip_pending=True)
-logger.info("✅ CONECTADO A TELEGRAM")
+logger.info("🤖 BOT V15 - AIOGRAM (ASYNC, SIN THREADING)")
 
 # DICCIONARIO AMPLIO DE PALABRAS PROHIBIDAS
 BANNED_WORDS = {
@@ -77,7 +78,8 @@ BANNED_WORDS = {
     "click here", "buy now", "limited time", "act now", "urgent",
 }
 
-# Cola de mensajes a borrar: {(chat_id, msg_id): timestamp_expiration}
+# Estado global
+user_warns = defaultdict(lambda: defaultdict(int))
 messages_to_delete = {}
 
 def normalize(text):
@@ -104,50 +106,37 @@ def has_banned_word(text):
             return True, word
     return False, None
 
-admin_cache = set()
-admin_cache_time = 0
-
-def get_admins():
-    """Obtiene lista de administradores con caché"""
-    global admin_cache, admin_cache_time
-    if time.time() - admin_cache_time > 600:
-        try:
-            admins = bot.get_chat_administrators(TARGET_GROUP_ID)
-            admin_cache = {admin.user.id for admin in admins}
-            admin_cache_time = time.time()
-        except: pass
-    return admin_cache
-
-user_warns = defaultdict(lambda: defaultdict(int))
-
-def process_deletions():
-    """Procesa los mensajes que deben ser borrados - SIN THREADING"""
-    current_time = time.time()
-    expired = [(k, v) for k, v in messages_to_delete.items() if v <= current_time]
-    
-    for (chat_id, msg_id), _ in expired:
-        try:
-            bot.delete_message(chat_id, msg_id)
-            logger.info(f"🗑️ Mensaje {msg_id} borrado después de 10s")
-        except:
-            pass
-        finally:
-            if (chat_id, msg_id) in messages_to_delete:
-                del messages_to_delete[(chat_id, msg_id)]
-
-@bot.message_handler(func=lambda msg: msg.chat.id == TARGET_GROUP_ID)
-def handle_message(message):
+async def delete_message_after_delay(bot, chat_id, message_id, delay=10):
+    """Borra un mensaje después de X segundos"""
+    await asyncio.sleep(delay)
     try:
-        # Procesar eliminaciones ANTES de procesar el mensaje
-        process_deletions()
+        await bot.delete_message(chat_id, message_id)
+        logger.info(f"🗑️ Mensaje {message_id} borrado después de {delay}s")
+    except Exception as e:
+        logger.error(f"Error borrando mensaje: {e}")
+
+async def message_handler(message: Message, bot: Bot):
+    """Maneja mensajes del grupo"""
+    try:
+        # Solo procesar mensajes del grupo objetivo
+        if message.chat.id != TARGET_GROUP_ID:
+            return
         
         user = message.from_user
-        if user.id in get_admins(): return
+        
+        # Obtener administradores
+        try:
+            admins = await bot.get_chat_administrators(TARGET_GROUP_ID)
+            admin_ids = {admin.user.id for admin in admins}
+            if user.id in admin_ids:
+                return
+        except:
+            pass
         
         # VERIFICACIÓN 1: USUARIO SIN ALIAS
         if not user.username:
             try:
-                bot.delete_message(message.chat.id, message.message_id)
+                await bot.delete_message(message.chat.id, message.message_id)
                 msg_text = """━━━━━━━━━━━━━━━━━━━━━
 ⚠️ NOMBRE DE USUARIO REQUERIDO
 
@@ -166,20 +155,22 @@ Este grupo requiere que todos los miembros tengan un nombre de usuario (@alias) 
 Una vez que tengas alias, podrás escribir sin problemas.
 
 ━━━━━━━━━━━━━━━━━━━━━"""
-                notif = bot.send_message(message.chat.id, msg_text)
-                messages_to_delete[(notif.chat.id, notif.message_id)] = time.time() + 10
+                notif = await bot.send_message(message.chat.id, msg_text)
+                asyncio.create_task(delete_message_after_delay(bot, notif.chat.id, notif.message_id, 10))
                 logger.info(f"❌ {user.first_name} - Sin username")
-            except Exception as e: logger.error(f"Error: {e}")
+            except Exception as e:
+                logger.error(f"Error: {e}")
             return
         
         text = message.text or message.caption or ""
-        if not text: return
+        if not text:
+            return
         
         # VERIFICACIÓN 2: PALABRAS PROHIBIDAS
         is_banned, word = has_banned_word(text)
         if is_banned:
             try:
-                bot.delete_message(message.chat.id, message.message_id)
+                await bot.delete_message(message.chat.id, message.message_id)
                 user_warns[user.id][message.chat.id] += 1
                 warns = user_warns[user.id][message.chat.id]
                 
@@ -201,8 +192,10 @@ Tu mensaje fue eliminado por contener contenido prohibido en este grupo.
 Alcanzaste 3 advertencias y fuiste removido del grupo.
 Si crees que es un error, contacta a los administradores.
 ━━━━━━━━━━━━━━━━━━━━━"""
-                    try: bot.kick_chat_member(message.chat.id, user.id)
-                    except: pass
+                    try:
+                        await bot.ban_chat_member(message.chat.id, user.id)
+                    except:
+                        pass
                 else:
                     remaining = 3 - warns
                     msg_text += f"""
@@ -211,16 +204,17 @@ Si crees que es un error, contacta a los administradores.
 
 ━━━━━━━━━━━━━━━━━━━━━"""
                 
-                notif = bot.send_message(message.chat.id, msg_text)
-                messages_to_delete[(notif.chat.id, notif.message_id)] = time.time() + 10
+                notif = await bot.send_message(message.chat.id, msg_text)
+                asyncio.create_task(delete_message_after_delay(bot, notif.chat.id, notif.message_id, 10))
                 logger.info(f"❌ {user.first_name} - Palabra prohibida: '{word}'")
-            except Exception as e: logger.error(f"Error: {e}")
+            except Exception as e:
+                logger.error(f"Error: {e}")
             return
         
         # VERIFICACIÓN 3: ENLACES/URLS
         if re.search(r'http[s]?://|www\.', text):
             try:
-                bot.delete_message(message.chat.id, message.message_id)
+                await bot.delete_message(message.chat.id, message.message_id)
                 msg_text = """━━━━━━━━━━━━━━━━━━━━━
 🔗 ENLACES NO PERMITIDOS
 
@@ -231,30 +225,42 @@ Tu mensaje fue eliminado porque contiene un enlace.
 Los enlaces no están permitidos en este grupo.
 
 ━━━━━━━━━━━━━━━━━━━━━"""
-                notif = bot.send_message(message.chat.id, msg_text)
-                messages_to_delete[(notif.chat.id, notif.message_id)] = time.time() + 10
+                notif = await bot.send_message(message.chat.id, msg_text)
+                asyncio.create_task(delete_message_after_delay(bot, notif.chat.id, notif.message_id, 10))
                 logger.info(f"❌ {user.first_name} - Intento de enlace")
-            except Exception as e: logger.error(f"Error: {e}")
+            except Exception as e:
+                logger.error(f"Error: {e}")
             return
-    except Exception as e: logger.error(f"Error general: {e}")
+    except Exception as e:
+        logger.error(f"Error general: {e}")
 
-def signal_handler(sig, frame):
-    logger.info("🛑 TERMINANDO BOT")
-    bot.stop_polling()
-    sys.exit(0)
-
-signal.signal(signal.SIGINT, signal_handler)
-signal.signal(signal.SIGTERM, signal_handler)
-
-if __name__ == "__main__":
-    logger.info("🚀 INICIANDO BOT V14 - SIN DAEMON THREADS")
+async def main():
+    """Función principal"""
+    logger.info("🚀 INICIANDO BOT V15 - AIOGRAM")
     logger.info(f"📊 Diccionario cargado: {len(BANNED_WORDS)} palabras prohibidas")
+    
+    # Crear bot y dispatcher
+    bot = Bot(token=BOT_TOKEN)
+    storage = MemoryStorage()
+    dp = Dispatcher(storage=storage)
+    
+    # Registrar handler
+    dp.message.register(lambda msg: message_handler(msg, bot))
+    
+    logger.info("✅ CONECTADO A TELEGRAM")
     
     try:
         logger.info("🚀 Iniciando polling...")
-        bot.infinity_polling(timeout=60, long_polling_timeout=30, skip_pending=True)
+        await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
     except Exception as e:
         logger.error(f"❌ Error en polling: {e}")
-        time.sleep(5)
+        await asyncio.sleep(5)
+    finally:
+        await bot.session.close()
+
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
     except KeyboardInterrupt:
-        signal_handler(None, None)
+        logger.info("🛑 BOT TERMINADO")
+        sys.exit(0)
