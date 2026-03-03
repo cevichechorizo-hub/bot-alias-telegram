@@ -9,11 +9,11 @@ logger = logging.getLogger(__name__)
 BOT_TOKEN = "8491596754:AAHBnLtSRI9Ii3uL6y-rcmLXxfU_7_7bips"
 TARGET_GROUP_ID = -1003534894759
 
-logger.info("🤖 BOT V12 - ELIMINACIÓN EN SEGUNDO PLANO")
+logger.info("🤖 BOT V13 - PALABRAS PROHIBIDAS ACTUALIZADAS")
 bot = TeleBot(BOT_TOKEN, skip_pending=True)
 logger.info("✅ CONECTADO A TELEGRAM")
 
-# DICCIONARIO AMPLIO DE PALABRAS PROHIBIDAS
+# DICCIONARIO AMPLIO DE PALABRAS PROHIBIDAS - ACTUALIZADO V13
 BANNED_WORDS = {
     # CONTENIDO SEXUAL EXPLÍCITO
     "sexo", "porno", "pornografía", "xxx", "anal", "anus", "anilingus", "asswipe",
@@ -34,6 +34,16 @@ BANNED_WORDS = {
     "grooming", "groomer", "pedo ring", "child trafficking", "child molester",
     "child predator", "jailbait", "barely legal", "teen porn", "young girls",
     "young boys", "preteen", "prepubescent", "pedofile", "kidporn", "childporn",
+    
+    # NUEVAS PALABRAS PROHIBIDAS - USUARIO SOLICITÓ
+    "cepe", "cepecito", "cepillo", "cepillin", "cepillin", "cepi", "cepita",
+    "niñas", "niñitas", "niña", "niñita", "niñas", "nenitas", "nenas",
+    "camiones pesados", "camion pesado", "camiones", "camion", "pesados",
+    "pdf", "p.d.f", "p d f",
+    "grupo de mrd", "grupo de mierda", "grupo basura", "grupo de basura",
+    "me largo del grupo", "largo del grupo", "me voy del grupo",
+    "este grupo no pasa nada", "grupo no pasa nada", "no pasa nada aqui",
+    "grupo de mrd", "grupo mrd", "mrd", "mierda", "basura",
     
     # INSULTOS Y PALABRAS OFENSIVAS
     "arsehole", "asshole", "ape", "retard", "retarded", "stupid", "idiot", "dumb",
@@ -247,7 +257,7 @@ signal.signal(signal.SIGINT, signal_handler)
 signal.signal(signal.SIGTERM, signal_handler)
 
 if __name__ == "__main__":
-    logger.info("🚀 INICIANDO BOT V12 - ELIMINACIÓN EN SEGUNDO PLANO")
+    logger.info("🚀 INICIANDO BOT V13 - PALABRAS PROHIBIDAS ACTUALIZADAS")
     logger.info(f"📊 Diccionario cargado: {len(BANNED_WORDS)} palabras prohibidas")
     
     # Iniciar thread de eliminación en segundo plano
